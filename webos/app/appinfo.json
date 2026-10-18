@@ -1,6 +1,6 @@
 {
   "id": "org.lgagents.claudesessions",
-  "version": "0.2.3",
+  "version": "1.0.0",
   "vendor": "lgagents",
   "type": "web",
   "main": "index.html",
