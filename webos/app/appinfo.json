@@ -1,0 +1,15 @@
+{
+  "id": "org.lgagents.claudesessions",
+  "version": "0.1.0",
+  "vendor": "lgagents",
+  "type": "web",
+  "main": "index.html",
+  "title": "Claude Sessions",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "iconColor": "#111417",
+  "bgColor": "#111417",
+  "resolution": "1920x1080",
+  "disableBackHistoryAPI": true,
+  "appDescription": "Your Claude Code sessions at a glance"
+}

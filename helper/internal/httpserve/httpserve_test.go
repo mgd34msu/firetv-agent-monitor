@@ -76,6 +76,26 @@ func TestOtherMethodsAndPaths(t *testing.T) {
 	}
 }
 
+func TestCrossOriginReadsAndPreflight(t *testing.T) {
+	s := New("secret")
+	s.Broadcast([]byte(`{"v":1}`))
+	h := s.Handler()
+	for _, auth := range []string{"Bearer secret", ""} {
+		if res, _ := get(t, h, "GET", "/state", auth); res.Header.Get("Access-Control-Allow-Origin") != "*" {
+			t.Errorf("auth %q: no Access-Control-Allow-Origin on %d", auth, res.StatusCode)
+		}
+	}
+	res, _ := get(t, h, "OPTIONS", "/state", "")
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("preflight: got %d", res.StatusCode)
+	}
+	if res.Header.Get("Access-Control-Allow-Headers") != "Authorization" ||
+		res.Header.Get("Access-Control-Allow-Methods") != "GET" ||
+		res.Header.Get("Access-Control-Allow-Origin") != "*" {
+		t.Fatalf("preflight headers: %v", res.Header)
+	}
+}
+
 func TestIsLoopback(t *testing.T) {
 	cases := map[string]bool{
 		"127.0.0.1:8787": true, "localhost:8787": true, "[::1]:8787": true,

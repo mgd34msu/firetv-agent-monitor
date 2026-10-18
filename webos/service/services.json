@@ -1,0 +1,5 @@
+{
+  "id": "org.lgagents.claudesessions.service",
+  "description": "Claude Sessions helper service",
+  "services": [{ "name": "org.lgagents.claudesessions.service" }]
+}

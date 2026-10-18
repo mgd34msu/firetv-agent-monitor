@@ -1,0 +1,150 @@
+/* Same geometry and colors as the Roku channel: a 1920 x 1080 scene with a
+   header and a 3 x 3 grid of 560 x 254 cards. */
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #111417;
+  color: #eceff1;
+  font-family: "LG Smart UI", "Museo Sans", "Helvetica Neue", Arial, sans-serif;
+  cursor: none;
+}
+
+#stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: 0 0;
+}
+
+#root {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  transition: transform 2s ease;
+}
+
+#title, #clock {
+  position: absolute;
+  top: 46px;
+  font-size: 50px;
+  font-weight: bold;
+}
+#title { left: 96px; }
+#clock { right: 96px; text-align: right; }
+
+#summary, #pageInfo {
+  position: absolute;
+  top: 110px;
+  font-size: 28px;
+  color: #90a4ae;
+  white-space: nowrap;
+}
+#summary { left: 96px; width: 1100px; }
+#pageInfo { right: 96px; text-align: right; }
+
+#grid {
+  position: absolute;
+  left: 96px;
+  top: 170px;
+  width: 1728px;
+  display: grid;
+  grid-template-columns: repeat(3, 560px);
+  grid-auto-rows: 254px;
+  gap: 24px;
+}
+
+#message {
+  position: absolute;
+  left: 160px;
+  top: 470px;
+  width: 1600px;
+  min-height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 44px;
+  color: #cfd8dc;
+}
+#message[hidden] { display: none; }
+
+/* --- card ------------------------------------------------------------------ */
+
+.card {
+  position: relative;
+  box-sizing: border-box;
+  padding: 22px 28px 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.card .name {
+  font-weight: bold;
+  font-size: 40px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: none;
+}
+.card.titled .name { font-size: 32px; }
+
+/* Centred between headline and status row, two lines at most. */
+.card .activity {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-height: 0;
+  opacity: 0.85;
+  font-size: 26px;
+  line-height: 1.25;
+}
+.card .activity span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.card .row {
+  flex: none;
+  height: 76px;
+  display: flex;
+  align-items: flex-start;
+  white-space: nowrap;
+}
+.card .status { font-size: 32px; flex: none; }
+.card .folder {
+  flex: 1;
+  min-width: 0;
+  margin-left: 24px;
+  padding-top: 4px;
+  font-size: 26px;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card .ctxTrack, .card .ctxFill {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 12px;
+}
+.card .ctxTrack { width: 100%; background: rgba(0, 0, 0, 0.33); }
+.card .ctxFill { background: rgba(255, 255, 255, 0.67); }
+
+.card.working { background: #2e7d32; color: #fff; }
+.card.waiting { background: #f9a825; color: #1a1a1a; }
+.card.error   { background: #c62828; color: #fff; }
+.card.idle    { background: #263238; color: #b0bec5; opacity: 0.55; }
+.card.unknown { background: #37474f; color: #fff; }
+.card.blinkOff { opacity: 0.35; }
