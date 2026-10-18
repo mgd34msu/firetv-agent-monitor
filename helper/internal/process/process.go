@@ -30,6 +30,12 @@ func (System) FindByName(ctx context.Context, name string) ([]Info, error) {
 	return findByName(ctx, name)
 }
 
+// FindByNamePrefix lists running processes whose executable name starts
+// with prefix, for programs that put their version in the name.
+func (System) FindByNamePrefix(ctx context.Context, prefix string) ([]Info, error) {
+	return findByNamePrefix(ctx, prefix)
+}
+
 // Children lists the running processes whose parent is one of parents.
 func (System) Children(ctx context.Context, parents []int) ([]Info, error) {
 	return children(ctx, parents)

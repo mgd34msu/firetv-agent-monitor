@@ -5,6 +5,7 @@ package process
 import (
 	"context"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
@@ -26,6 +27,13 @@ func findByName(ctx context.Context, name string) ([]Info, error) {
 	return list(ctx, func(p *process.Process) bool {
 		pname, err := p.NameWithContext(ctx)
 		return err == nil && pname == name
+	})
+}
+
+func findByNamePrefix(ctx context.Context, prefix string) ([]Info, error) {
+	return list(ctx, func(p *process.Process) bool {
+		pname, err := p.NameWithContext(ctx)
+		return err == nil && strings.HasPrefix(pname, prefix)
 	})
 }
 

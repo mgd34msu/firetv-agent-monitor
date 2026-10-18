@@ -3,6 +3,7 @@ package process
 import (
 	"context"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
@@ -25,6 +26,12 @@ func findByName(ctx context.Context, name string) ([]Info, error) {
 	// p_comm keeps the first 16 bytes (MAXCOMLEN) of the executable name,
 	// enough for the names the detectors look for.
 	return list(ctx, func(k *unix.KinfoProc) bool { return unix.ByteSliceToString(k.Proc.P_comm[:]) == name })
+}
+
+func findByNamePrefix(ctx context.Context, prefix string) ([]Info, error) {
+	return list(ctx, func(k *unix.KinfoProc) bool {
+		return strings.HasPrefix(unix.ByteSliceToString(k.Proc.P_comm[:]), prefix)
+	})
 }
 
 func children(ctx context.Context, parents []int) ([]Info, error) {

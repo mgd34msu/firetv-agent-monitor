@@ -13,12 +13,17 @@ import (
 	"github.com/tonylook/managents/helper/internal/app"
 	"github.com/tonylook/managents/helper/internal/detect"
 	"github.com/tonylook/managents/helper/internal/detect/claude"
+	"github.com/tonylook/managents/helper/internal/detect/codex"
+	"github.com/tonylook/managents/helper/internal/detect/goodvibes"
+	"github.com/tonylook/managents/helper/internal/detect/muse"
+	"github.com/tonylook/managents/helper/internal/detect/opencode"
 	"github.com/tonylook/managents/helper/internal/discovery"
 	"github.com/tonylook/managents/helper/internal/httpserve"
 	"github.com/tonylook/managents/helper/internal/process"
 )
 
-// serveCommand publishes Claude Code session state over HTTP for network
+// serveCommand publishes Claude Code, Codex, OpenCode, Muse Code and
+// GoodVibes session state over HTTP for network
 // displays such as the Roku channel. See docs/http-api.md.
 func serveCommand(ctx context.Context, inv *invocation) error {
 	flags := inv.flags()
@@ -53,6 +58,18 @@ func serveCommand(ctx context.Context, inv *invocation) error {
 	claudeSource.ContextWindow = *claudeWindow
 	claudeSource.Titles = *titles
 	claudeSource.Activity = *activity
+	procs := process.System{}
+	museSource := muse.NewSource(home, procs)
+	museSource.Titles, museSource.Activity = *titles, *activity
+	goodvibesSource := goodvibes.NewSource(home)
+	goodvibesSource.Titles, goodvibesSource.Activity = *titles, *activity
+	sources := []detect.Source{
+		claudeSource,
+		codex.NewSource(home, procs),
+		&opencode.Source{Processes: procs, Store: opencode.SQLiteStore{Path: opencode.DefaultDatabasePath(home)}},
+		museSource,
+		goodvibesSource,
+	}
 	server := httpserve.New(token)
 
 	listener, err := net.Listen("tcp", *addr)
@@ -74,7 +91,7 @@ func serveCommand(ctx context.Context, inv *invocation) error {
 	}
 	runnerDone := make(chan error, 1)
 	go func() {
-		runnerDone <- app.NewRunner([]detect.Source{claudeSource}, server, logger).Run(runCtx)
+		runnerDone <- app.NewRunner(sources, server, logger).Run(runCtx)
 	}()
 	logger.Info("serving Claude session state", "addr", listener.Addr().String(),
 		"auth", token != "", "version", currentVersion())
