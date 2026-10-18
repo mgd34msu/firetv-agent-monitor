@@ -110,6 +110,10 @@ func DescribeCommand(cmd string) string {
 		switch {
 		case words[0] == "cd" && len(words) > 2 && (words[2] == "&&" || words[2] == ";"):
 			words = words[3:]
+		case (words[0] == "cd" || words[0] == "sleep") && len(words) > 2 && strings.HasSuffix(words[1], ";"):
+			words = words[2:] // "cd dir;" or "sleep 25;": waiting, not the work
+		case words[0] == "sleep" && len(words) > 2 && (words[2] == "&&" || words[2] == ";"):
+			words = words[3:]
 		case strings.Contains(words[0], "=") && !strings.HasPrefix(words[0], "-"):
 			words = words[1:]
 		default:

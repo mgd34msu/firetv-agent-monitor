@@ -12,10 +12,12 @@
 //	pending or claimed approval for the session   waiting, with the request as activity
 //	lastError set                                 error
 //	activeAgentId set                             working
+//	terminal UI: prompt in the transcript journal working (files.go)
+//	terminal UI: otherwise                        waiting
 //	otherwise                                     open
 //
-// "open" says only that the session is there: the daemon does not see the
-// turns of terminal-UI sessions, which run inside their own process.
+// The daemon does not see the turns of terminal-UI sessions, which run inside
+// their own process; files.go reads them from the session's own files.
 //
 // The daemon wants the operator token from
 // $GOODVIBES_DAEMON_HOME/operator-tokens.json.
@@ -31,9 +33,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/tonylook/managents/helper/internal/agent"
+	"github.com/tonylook/managents/helper/internal/detect"
 )
 
 // KindGoodVibes is the protocol kind of a GoodVibes session.
@@ -53,6 +57,9 @@ type Source struct {
 	Client           *http.Client
 	Titles           bool
 	Activity         bool
+
+	mu    sync.Mutex
+	since map[string]seen
 }
 
 // NewSource returns a Source for the GoodVibes install of the user whose home
@@ -126,36 +133,77 @@ func (s *Source) Sessions(ctx context.Context, now time.Time) ([]agent.Session, 
 		}
 	}
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.since == nil {
+		s.since = map[string]seen{}
+	}
 	var sessions []agent.Session
+	live := map[string]bool{}
 	for _, r := range list.Sessions {
 		if r.Status != "active" || !s.alive(r, now) {
 			continue
 		}
-		started := time.UnixMilli(r.CreatedAt)
+		live[r.ID] = true
 		session := agent.Session{
 			ID:        string(KindGoodVibes) + ":" + r.ID,
 			Kind:      KindGoodVibes,
 			Dir:       r.Project,
 			Status:    StatusOpen,
-			Since:     time.UnixMilli(cmp.Or(r.LastActivityAt, r.CreatedAt)),
-			StartedAt: started,
+			StartedAt: time.UnixMilli(r.CreatedAt),
 		}
-		if s.Titles && r.Title != "" && r.Title != "Terminal UI session" {
-			session.Title = r.Title
+		title := r.Title
+		if r.Kind == "tui" {
+			// The daemon does not see a terminal session's turns; its files do.
+			conv, ok := s.readConversation(r.Project, r.ID)
+			switch {
+			case s.turnRunning(r.ID):
+				session.Status = agent.StatusWorking
+				session.Activity = conv.doing
+			case ok:
+				session.Status = agent.StatusWaiting
+				session.Activity = conv.said
+			}
+			session.Context = conv.context
+			title = cmp.Or(conv.title, title)
 		}
 		switch a, ok := pending[r.ID]; {
 		case ok:
 			session.Status = agent.StatusWaiting
-			session.Since = time.UnixMilli(a.CreatedAt)
-			if s.Activity {
-				session.Activity = cmp.Or(a.Request.Analysis.Summary, "Approve "+a.Request.Tool)
-			}
+			session.Activity = cmp.Or(a.Request.Analysis.Summary, "Approve "+a.Request.Tool)
 		case r.LastError != nil && r.LastError != "":
 			session.Status = agent.StatusError
 		case r.ActiveAgentID != "":
 			session.Status = agent.StatusWorking
 		}
+		if s.Titles && title != "" && title != "Terminal UI session" {
+			session.Title = detect.Truncate(title, 120)
+		}
+		if !s.Activity {
+			session.Activity = ""
+		}
+		session.Activity = detect.Truncate(session.Activity, 100)
+
+		prev, known := s.since[r.ID]
+		switch {
+		case known && prev.status == session.Status:
+			session.Since = prev.since
+		case known:
+			session.Since = now
+		default:
+			// First sight: when the session started, as good a guess as any.
+			session.Since = session.StartedAt
+		}
+		s.since[r.ID] = seen{session.Status, session.Since}
+		if session.Status == agent.StatusWaiting && now.Sub(session.Since) >= agent.DormantAfter {
+			session.Status = agent.StatusIdle
+		}
 		sessions = append(sessions, session)
+	}
+	for id := range s.since {
+		if !live[id] {
+			delete(s.since, id)
+		}
 	}
 	return sessions, approvalErr
 }
