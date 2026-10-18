@@ -1,7 +1,7 @@
 # Agent Sessions for LG webOS
 
 Your Claude Code, Codex, Muse Code, GoodVibes and OpenCode sessions on an LG TV: session
-cards on the left two thirds, plan usage (Claude, Codex) and per-session context on the
+cards on the left two thirds, plan usage (Claude, Codex, Muse) and per-session context on the
 right. Built for a rooted 86NANO90UNA (webOS 5.6, Homebrew Channel with SSH).
 
 ## Run the helper on your computer
@@ -36,7 +36,7 @@ sshpass -p alpine ssh root@$TV_IP '(luna-send -i luna://com.webos.appInstallServ
 |---|---|
 | Claude | `api.anthropic.com/api/oauth/usage` with Claude Code's local login (`~/.claude/.credentials.json`), every 60 s |
 | Codex | `rate_limits` in the newest `~/.codex/sessions` log, no network |
-| Muse | not available: Muse keeps its limits in memory only |
+| Muse | `POST api.meta.ai/muse-code/key` with the Muse CLI's `dca:` token from `~/.config/muse/auth.json`, every 5 min (method from [CodexBar](https://github.com/steipete/CodexBar/blob/main/docs/muse.md)); the call mints an inference key, which is discarded |
 
 GoodVibes terminal sessions show as "Open" unless they wait on an approval: the daemon
 does not see their turns.

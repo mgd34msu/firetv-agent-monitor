@@ -5,10 +5,14 @@
 //     token Claude Code keeps in ~/.claude/.credentials.json (the numbers
 //     Claude Code's /usage shows). The token is read on every poll, never
 //     refreshed or stored here: Claude Code refreshes it.
+//
 //   - Codex: the rate_limits Codex writes into its newest session log, so no
 //     network call.
 //
-// Muse Code keeps its numbers in the running process only, so it is absent.
+//   - Muse Code: POST https://api.meta.ai/muse-code/key with the device-code
+//     ("dca:") token the Muse CLI keeps in ~/.config/muse/auth.json, as
+//     CodexBar does. That call also mints an inference key, which is
+//     discarded, so it runs at most every five minutes.
 package usage
 
 import (
@@ -53,7 +57,14 @@ type Poller struct {
 	mu     sync.Mutex
 	claude *Provider
 	last   time.Time
+
+	museMu   sync.Mutex
+	muse     *Provider
+	museLast time.Time
 }
+
+// museInterval spaces Muse calls, each of which mints a key.
+const museInterval = 5 * time.Minute
 
 // NewPoller returns a Poller for the user whose home directory is home.
 func NewPoller(home string) *Poller {
@@ -68,6 +79,9 @@ func (p *Poller) Snapshot(ctx context.Context, now time.Time) []Provider {
 	}
 	if c := p.codexUsage(); c != nil {
 		out = append(out, *c)
+	}
+	if m := p.museUsage(ctx, now); m != nil {
+		out = append(out, *m)
 	}
 	return out
 }
@@ -231,4 +245,88 @@ func newestCodexLogs(dir string, n int) []string {
 		out = append(out, files[i].path)
 	}
 	return out
+}
+
+// --- Muse Code ---------------------------------------------------------------
+
+func (p *Poller) museUsage(ctx context.Context, now time.Time) *Provider {
+	p.museMu.Lock()
+	defer p.museMu.Unlock()
+	if !p.museLast.IsZero() && now.Sub(p.museLast) < museInterval {
+		return p.muse
+	}
+	p.museLast = now
+	if fresh, err := p.fetchMuse(ctx, now); err == nil {
+		p.muse = fresh
+	}
+	return p.muse
+}
+
+func (p *Poller) fetchMuse(ctx context.Context, now time.Time) (*Provider, error) {
+	path := os.Getenv("MUSE_AUTH_PATH")
+	if path == "" {
+		path = filepath.Join(p.Home, ".config", "muse", "auth.json")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var auth struct {
+		Providers struct {
+			Meta struct {
+				AccessToken string `json:"access_token"`
+			} `json:"meta"`
+		} `json:"providers"`
+	}
+	if err := json.Unmarshal(data, &auth); err != nil || !strings.HasPrefix(auth.Providers.Meta.AccessToken, "dca:") {
+		return nil, errors.New("no Muse device-code login")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.meta.ai/muse-code/key", strings.NewReader("{}"))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+auth.Providers.Meta.AccessToken)
+	req.Header.Set("x-api-version", "1.0.0")
+	req.Header.Set("Content-Type", "application/json")
+	res, err := p.Client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.New(res.Status)
+	}
+	// Only these fields are decoded; the minted api_key is never read.
+	var body struct {
+		Active    bool   `json:"is_subs_active"`
+		Tier      string `json:"subs_tier_name"`
+		SubsUsage *struct {
+			Window *struct {
+				UsedPercent float64 `json:"used_percent"`
+				Minutes     int     `json:"window_duration_mins"`
+				ResetsAt    int64   `json:"resets_at"`
+			} `json:"window"`
+			Weekly *struct {
+				UsedPercent float64 `json:"used_percent"`
+				ResetsAt    int64   `json:"resets_at"`
+			} `json:"weekly"`
+		} `json:"subs_usage"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		return nil, err
+	}
+	if !body.Active {
+		return nil, errors.New("no Muse subscription")
+	}
+	out := &Provider{Kind: "muse", Plan: strings.TrimPrefix(body.Tier, "Muse Code "), AsOf: now.Unix()}
+	// Meta leaves subs_usage out while the 5-hour window is idle.
+	if u := body.SubsUsage; u != nil {
+		if w := u.Window; w != nil && w.Minutes > 0 {
+			out.Windows = append(out.Windows, Window{Label: windowLabel(w.Minutes), Used: int(w.UsedPercent + 0.5), ResetsAt: w.ResetsAt})
+		}
+		if w := u.Weekly; w != nil {
+			out.Windows = append(out.Windows, Window{Label: "Week", Used: int(w.UsedPercent + 0.5), ResetsAt: w.ResetsAt})
+		}
+	}
+	return out, nil
 }

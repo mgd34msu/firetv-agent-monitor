@@ -235,7 +235,8 @@ function renderPanel(frame, agents, elapsed) {
     html += '</div>';
     var windows = p && Array.isArray(p.windows) ? p.windows : [];
     if (windows.length === 0) {
-      html += '<div class="note">' + (kind === 'muse' ? 'Muse does not share its limits yet' : 'No usage reported yet') + '</div>';
+      // Meta leaves out Muse's numbers while its 5-hour window is idle.
+      html += '<div class="note">' + (p && kind === 'muse' ? '5-hour window idle' : 'No usage reported yet') + '</div>';
     }
     windows.forEach(function (w) {
       var used = typeof w.used === 'number' ? w.used : 0;
