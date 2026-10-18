@@ -1,196 +1,132 @@
-<h1 align="center">rokuagents</h1>
+<h1 align="center">LG Agent Monitor</h1>
 
 <p align="center">
-  <img src="docs/images/rokuagents-tv.jpg" alt="A TV showing nine Claude Code session cards: three green working, two yellow needing you, one red error and three idle, each with its title and folder" width="720">
+  <img src="docs/images/lg-tv-demo.png" alt="The TV app: six session cards for Claude, Codex, Muse and GoodVibes on the left, plan usage bars and context per session on the right" width="820">
 </p>
 
 <p align="center">
-  <b>Your Claude Code sessions on the TV, so you can see at a glance which one needs you.</b>
+  <b>Every AI coding agent you have open, on your LG TV: which one is working, which one needs you, and how much of your plan is left.</b>
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license"></a>
 </p>
 
-Every open [Claude Code](https://claude.com/claude-code) session is a card on your Roku: green while it works, yellow
-when it waits for you, red when it failed, dimmed once it has been idle for hours. Each card shows the session's title
-as the Claude app shows it in its sidebar, the folder it runs in, how long it has been in that state, and a bar for
-context-window usage. It also works as a Roku screensaver.
+Each open session is a card: green while it works, yellow when it waits for you, red when it failed, dimmed once it
+has been idle for hours. A card names the tool, the session's title and folder, what the agent is doing right now (or
+what it asked you), how long it has been in that state, and a bar for context-window usage. The right third of the
+screen shows how much of each subscription's 5-hour and weekly limits is used, and the context of every session.
 
-rokuagents is a fork of [managents](https://github.com/tonylook/managents) by Antonio Alvino, a USB desk display for
-the same job. It adds a small HTTP server to the managents helper and a Roku channel that reads from it. The USB
-display still works as upstream does.
+This is a fork of [rokuagents](https://github.com/jonsykes/rokuagents) by Jon Sykes, which is itself a fork of
+[managents](https://github.com/tonylook/managents) by Antonio Alvino. See [Credits](#credits).
+
+## Supported agents
+
+| Agent | Status | What it is doing | Context | Plan limits |
+|---|---|---|---|---|
+| [Claude Code](https://claude.com/claude-code) | yes | yes | yes | 5-hour and weekly |
+| Codex | yes | yes | yes | 5-hour and weekly |
+| Muse Code | yes | yes | yes | 5-hour and weekly |
+| GoodVibes | yes | yes | yes | none (no subscription) |
+| OpenCode | yes | no | no | none |
+
+Where each number comes from, all read on your computer:
+
+| Agent | Sessions and status | Plan limits |
+|---|---|---|
+| Claude Code | `~/.claude/sessions` and transcripts | `api.anthropic.com/api/oauth/usage` with Claude Code's own login, every minute |
+| Codex | running `codex` processes, `~/.codex` state database and rollouts | `rate_limits` in the newest rollout, no network |
+| Muse Code | running `muse-bin-*` processes, `~/.local/share/muse` session index and logs | `api.meta.ai/muse-code/key` with the Muse CLI's login, every 5 minutes |
+| GoodVibes | the GoodVibes daemon (`127.0.0.1:3421`), each session's transcript journal and recovery file | none |
 
 ## How it works
 
 ```
-Claude Code ──> managents serve ──── HTTP, your LAN ────> Roku channel
-(your Mac)      reads session files   GET /state, once      draws the cards
-                every second          a second, with a token
+Claude Code, Codex,   managents serve ──── HTTP, your LAN ────> LG TV app (webOS)
+Muse, GoodVibes  ───> reads session files    GET /state, once      draws the cards
+(your computer)       and plan usage         a second, with a      and the panel
+                                             token
 ```
 
-- **`managents serve`** runs on your computer. It reads Claude Code's session registry and the end of each open
-  transcript, works out each session's status, and answers `GET /state` with JSON. Requests need a bearer token, and
-  the server refuses to listen beyond localhost without one. The format is in [docs/http-api.md](docs/http-api.md).
-- **The Roku channel** in [`roku/`](roku/README.md) polls that address once a second. Your computer's address and the
-  token are built into the channel when you install it. If the address changes, the channel finds the server again
-  with a broadcast on your LAN that only the server holding the same token answers.
-
-Only Claude Code sessions are shown on the TV. OpenCode and Codex appear only on the USB display.
+- **`managents serve`** runs on your computer. It detects the sessions, works out each one's status and activity,
+  polls plan usage, and answers `GET /state` with JSON. Requests need a bearer token. The format is in
+  [docs/http-api.md](docs/http-api.md), plus a `usage` array for the panel.
+- **The webOS app** in [`webos/`](webos/README.md) polls that address once a second. A small service bundled with it
+  finds your computer again with a LAN broadcast when its address changes, and asks the TV to hold off its
+  screensaver while the app is open.
 
 ## What you need
 
-- **A Mac** with Claude Code (tested on macOS 26). Linux should work for the server but is untested.
-- **Go 1.26 or newer** to build the helper: `brew install go`.
-- **A Roku** on the same network, in developer mode (step 4 below). Tested on a TCL Roku TV with Roku OS 15.3.
-- The computer and the Roku on the same network. The channel follows your computer when its LAN address changes.
+- **A computer** with the agents you use. Developed on Linux; the upstream helper also supports macOS.
+- **Go 1.26 or newer** to build the helper.
+- **An LG webOS TV, rooted, with the [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel) and SSH
+  enabled.** Built for an 86NANO90UNA (webOS 5.6). Other webOS TVs should work.
+- **Node.js**, so the build can fetch LG's `ares-package` through `npx`.
 
 ## Get started
 
-**The easy way: the menu bar app.** It runs the server, installs the channel on the Roku from its Settings window,
-and reinstalls it by itself when your Mac's address changes. Its menu lists your sessions:
-
-<p align="center">
-  <img src="docs/images/rokuagents-menu.png" alt="The rokuagents menu listing nine sessions with coloured status dots, and its commands" width="380">
-</p>
-
-Build and open it with:
-
-```sh
-git clone https://github.com/jonsykes/rokuagents.git
-cd rokuagents/macos
-./build.sh --install
-```
-
-Then put the Roku in developer mode (step 4 below) and follow [the app's first run](macos/README.md#first-run).
-
-**Or set it up from the command line:**
-
-1. **Build the helper.**
+1. **Build the helper**, or download it from the [latest release](../../releases/latest):
 
    ```sh
-   git clone https://github.com/jonsykes/rokuagents.git
-   cd rokuagents/helper
-   go build -o ~/bin/managents ./cmd/managents
+   cd helper && go build -o ~/bin/managents ./cmd/managents
    ```
 
-2. **Create a token and start the server** on your LAN address (`ipconfig getifaddr en0` prints it):
+2. **Create a token and start the server:**
 
    ```sh
    mkdir -p ~/.config/managents
    (umask 077; openssl rand -hex 16 > ~/.config/managents/token)
-   MANAGENTS_TOKEN=$(cat ~/.config/managents/token) ~/bin/managents serve --addr 192.168.1.20:8787
+   MANAGENTS_TOKEN=$(cat ~/.config/managents/token) ~/bin/managents serve --addr :8787
    ```
 
-   Check it from another terminal. You should see your sessions as JSON:
+   If a firewall is on, open TCP and UDP 8787 to your LAN only, for example
+   `sudo ufw allow from 192.168.0.0/24 to any port 8787`.
+
+3. **Build and install the TV app.** The address and token are baked into the package, so build it yourself:
 
    ```sh
-   curl -H "Authorization: Bearer $(cat ~/.config/managents/token)" http://192.168.1.20:8787/state
+   cd webos
+   TV_IP=YOUR_TV_IP TV_PASS=your-root-password ./build.sh http://YOUR_COMPUTER_IP:8787 "$(cat ~/.config/managents/token)"
    ```
 
-   If macOS asks whether `managents` may accept incoming connections, allow it.
-
-3. **Start it at login.** Stop the server from step 2, save this as
-   `~/Library/LaunchAgents/com.managents.serve.plist` with your address, and load it with
-   `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.managents.serve.plist`. It reads the token from the
-   file, so the token never sits in the plist.
-
-   ```xml
-   <?xml version="1.0" encoding="UTF-8"?>
-   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-   <plist version="1.0">
-   <dict>
-     <key>Label</key><string>com.managents.serve</string>
-     <key>ProgramArguments</key>
-     <array>
-       <string>/bin/sh</string>
-       <string>-c</string>
-       <string>MANAGENTS_TOKEN="$(cat "$HOME/.config/managents/token")" exec "$HOME/bin/managents" serve --addr 192.168.1.20:8787</string>
-     </array>
-     <key>RunAtLoad</key><true/>
-     <key>KeepAlive</key><true/>
-     <key>ThrottleInterval</key><integer>10</integer>
-     <key>StandardOutPath</key><string>/Users/YOU/Library/Logs/managents-serve.log</string>
-     <key>StandardErrorPath</key><string>/Users/YOU/Library/Logs/managents-serve.log</string>
-   </dict>
-   </plist>
-   ```
-
-4. **Put the Roku in developer mode** (once). On the remote press **Home ×3, Up ×2, Right, Left, Right, Left,
-   Right**, enable the installer, accept the agreement and set a password. The Roku restarts and shows its IP address.
-
-5. **Build and install the channel.**
-
-   ```sh
-   cd ../roku
-   ROKU_IP=192.168.1.50 ROKU_PASS=your-dev-password ./build.sh http://192.168.1.20:8787 "$(cat ~/.config/managents/token)"
-   ```
-
-   The channel opens on the TV. Run this again when the token changes. When your computer's address changes, the
-   channel finds the server again by itself, but a server started with `--addr` on the old address stops: update the
-   plist, or use `--addr :8787` to listen on every interface (the token still guards it).
+   Details, including a manual install, are in [webos/README.md](webos/README.md).
 
 ## Using it
 
-- Nine cards per page: working sessions first, then the most recently changed. Left/right or up/down turn pages, and it returns to the first page after
-  30 seconds.
-- The header shows how many sessions are working and how many need you, your computer's clock and the page.
-- A session without a title yet shows its folder name as the headline. Several sessions in one folder are numbered
-  (`api #1`, `api #2`).
-- Fresh errors blink for their first minute.
-- **Screensaver:** Settings > Theme > Screensavers > Claude Sessions. Pages turn every 10 seconds and the layout
-  drifts a little each minute to avoid burn-in.
-- The channel stays installed until you sideload another one or turn developer mode off.
-
-To restart the server or read its log:
-
-```sh
-launchctl kickstart -k gui/$(id -u)/com.managents.serve
-tail -f ~/Library/Logs/managents-serve.log
-```
-
-## Troubleshooting
-
-| What you see | Cause and fix |
-|---|---|
-| "Reconnecting..." | Your computer is asleep or the server is stopped. Check the log. The channel finds a new address by itself while the server runs; with the plist above, an address change stops the server, so update `--addr` (or use `--addr :8787`). |
-| "The helper rejected the token" | The token in the channel differs from the server's. Rerun `build.sh` with the current token. |
-| No cards | `curl` the server as in step 2. An empty list means Claude Code has no open sessions it can see in `~/.claude/sessions`. |
-| `build.sh` fails to install | Check `ROKU_IP`, the developer password, and that the computer and the Roku are on the same network. |
+- Six cards per page. Left/right, up/down, or channel up/down turn pages; it returns to the first page after 30 seconds.
+- The panel lists sessions until it runs out of room, then counts the rest.
+- Back closes the app.
 
 ## Privacy
 
-The server sends each Claude Code session's folder name, title, status, age and context usage. Nothing else from
-your conversations leaves the computer: transcripts are read only for status, token counts and the title entries.
-Titles are written from your conversations, so anyone who can see the TV can read them. Start the server with
-`--titles=false` to show folder names only.
+The server sends each session's folder name, title, status, age, context usage and a short activity line, plus your
+plans' usage percentages. Titles and activity lines come from your conversations, so anyone who can see the TV can read
+them: start the server with `--titles=false` or `--activity=false` to leave them out.
 
-The traffic is plain HTTP on your network, protected by the token. Keep the server on your LAN address, not on a
-public interface. Details: [docs/privacy.md](docs/privacy.md#network-displays-rokuagents).
+To read plan limits the helper uses the logins Claude Code and the Muse CLI already keep on your computer, and sends
+them only to Anthropic and Meta respectively. Muse's usage call also mints an inference key, which the helper discards
+without storing. Traffic to the TV is plain HTTP on your network, protected by the token.
 
-## The USB desk display
+## Also in this repository
 
-Everything from managents is still here: the 4-inch ESP32 display, its firmware, the 3D-printed stand and
-`managents run`, which also shows OpenCode and Codex sessions. Start with the [build guide](docs/build.md) and
-[Install and flash](docs/install.md). The one-line installer in those docs installs upstream's release, which does not
-include `serve`; build from this repository to get both.
+Everything from upstream still works: the Roku channel in [`roku/`](roku/README.md), the macOS menu bar app in
+[`macos/`](macos/README.md), and the managents USB desk display (firmware, enclosure and `managents run`). The
+rokuagents README is kept at [docs/upstream-rokuagents-README.md](docs/upstream-rokuagents-README.md).
 
-## More
+## Credits
 
-| | |
-|---|---|
-| [Menu bar app](macos/README.md) | Settings, first run, how the app is built |
-| [Roku channel](roku/README.md) | The channel's files and how it polls |
-| [HTTP API](docs/http-api.md) | What `serve` answers, for building another display |
-| [Privacy](docs/privacy.md) | What the helper reads and what it sends |
-| [How it works](docs/architecture.md) | The helper's architecture and the [protocol](docs/protocol.md) the frames come from |
-| [Contributing](CONTRIBUTING.md) | Tests and lint; the [changelog](CHANGELOG.md) |
+- **[managents](https://github.com/tonylook/managents)** by **Antonio Alvino**: the original USB desk display for AI
+  coding agents, its Go helper, session detection for Claude Code, Codex and OpenCode, and the serial protocol.
+- **[rokuagents](https://github.com/jonsykes/rokuagents)** by **Jon Sykes**: the fork this repository forks. It added
+  `managents serve` (the HTTP API and LAN discovery), the Roku channel and the macOS app. The card design on the TV
+  follows its Roku channel.
+- **[CodexBar](https://github.com/steipete/CodexBar)** by **Peter Steinberger**: how to read Muse Code's subscription
+  usage ([docs/muse.md](https://github.com/steipete/CodexBar/blob/main/docs/muse.md)).
+- **[webOS Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel)**, which makes sideloading and the
+  root service possible.
 
-## Credits and license
+Built with [gopsutil](https://github.com/shirou/gopsutil), [modernc.org/sqlite](https://gitlab.com/cznic/sqlite) and the
+other components listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Released under the [MIT license](LICENSE).
 
-Built on [managents](https://github.com/tonylook/managents) by Antonio Alvino, with
-[gopsutil](https://github.com/shirou/gopsutil), [modernc.org/sqlite](https://gitlab.com/cznic/sqlite) and the other
-components listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Released under the [MIT license](LICENSE).
-
-Claude and Claude Code are trademarks of Anthropic, and Roku is a trademark of Roku, Inc. This project is not
-affiliated with either.
+Claude and Claude Code are trademarks of Anthropic, Codex of OpenAI, Muse of Meta, LG and webOS of LG Electronics, and
+Roku of Roku, Inc. This project is not affiliated with any of them.

@@ -270,6 +270,31 @@ function renderPanel(frame, agents, elapsed) {
   if (html !== panelCache.tokens) {
     el.tokens.innerHTML = html;
     panelCache.tokens = html;
+    fitTokens(agents.length);
+  }
+}
+
+// Drops the session rows that would run past the bottom of the panel (the
+// plan-usage section above grows with each provider's windows) and counts
+// them in the "+N more" line instead.
+function fitTokens(total) {
+  var bottom = document.getElementById('panel').getBoundingClientRect().bottom;
+  var rows = el.tokens.querySelectorAll('.tokenRow');
+  var more = el.tokens.querySelector('.tokenMore');
+  var reserve = more || rows.length < total ? 40 : 0;
+  var shown = rows.length;
+  for (var i = rows.length - 1; i >= 0 && rows[i].getBoundingClientRect().bottom > bottom - reserve; i--) {
+    el.tokens.removeChild(rows[i]);
+    shown--;
+    reserve = 40;
+  }
+  if (shown < total) {
+    if (!more) {
+      more = document.createElement('div');
+      more.className = 'tokenMore';
+      el.tokens.appendChild(more);
+    }
+    more.textContent = '+' + (total - shown) + ' more';
   }
 }
 

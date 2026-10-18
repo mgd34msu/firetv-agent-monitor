@@ -62,11 +62,17 @@ luna() {
 echo "installing on $TV_IP..."
 remote=/tmp/lgagents-$$.ipk
 tv_copy "$ipk" "$remote"
-result=$(tv "(luna-send -i luna://com.webos.appInstallService/dev/install \
-  '{\"id\":\"$app_id\",\"ipkUrl\":\"$remote\",\"subscribe\":true}' > /tmp/lgagents-install.log 2>&1 & P=\$!
-  for i in \$(seq 1 150); do sleep 2; grep -q '\"installed\"\\|install failed' /tmp/lgagents-install.log && break; done
-  kill \$P); cat /tmp/lgagents-install.log; rm -f $remote /tmp/lgagents-install.log" |
-  grep -Eo '"state": *"(installed|install failed)"|"reason": *"[^"]*"' | tr '\n' ' ' || true)
+# The first install of a freshly copied package often fails verification
+# ("ipk verified failed") and the same file installs on a second try.
+for attempt in 1 2 3; do
+  result=$(tv "(luna-send -i luna://com.webos.appInstallService/dev/install \
+    '{\"id\":\"$app_id\",\"ipkUrl\":\"$remote\",\"subscribe\":true}' > /tmp/lgagents-install.log 2>&1 & P=\$!
+    for i in \$(seq 1 150); do sleep 2; grep -q '\"installed\"\\|install failed' /tmp/lgagents-install.log && break; done
+    kill \$P); cat /tmp/lgagents-install.log; rm -f /tmp/lgagents-install.log" |
+    grep -Eo '"state": *"(installed|install failed)"|"reason": *"[^"]*"' | tr '\n' ' ' || true)
+  case "$result" in *'ipk verified failed'*) sleep 3 ;; *) break ;; esac
+done
+tv "rm -f $remote"
 case "$result" in
   *'"installed"'*) ;;
   *) echo "install failed: ${result:-no answer from appInstallService}" >&2; exit 1 ;;

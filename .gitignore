@@ -12,3 +12,6 @@ firmware/.vscode/
 
 # Firmware image copied in for the helper to embed (see make helper)
 /helper/internal/firmware/images/managents-firmware-*
+
+# GoodVibes plugin state (local session caches and telemetry)
+.goodvibes/
