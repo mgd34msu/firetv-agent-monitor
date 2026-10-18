@@ -60,12 +60,13 @@ luna() {
 }
 
 echo "installing on $TV_IP..."
-remote=/tmp/lgagents.ipk
+remote=/tmp/lgagents-$$.ipk
 tv_copy "$ipk" "$remote"
-result=$(luna luna://com.webos.appInstallService/dev/install \
-  "{\"id\":\"$app_id\",\"ipkUrl\":\"$remote\",\"subscribe\":true}" '"installed"|install failed' 300 |
+result=$(tv "(luna-send -i luna://com.webos.appInstallService/dev/install \
+  '{\"id\":\"$app_id\",\"ipkUrl\":\"$remote\",\"subscribe\":true}' > /tmp/lgagents-install.log 2>&1 & P=\$!
+  for i in \$(seq 1 150); do sleep 2; grep -q '\"installed\"\\|install failed' /tmp/lgagents-install.log && break; done
+  kill \$P); cat /tmp/lgagents-install.log; rm -f $remote /tmp/lgagents-install.log" |
   grep -Eo '"state": *"(installed|install failed)"|"reason": *"[^"]*"' | tr '\n' ' ' || true)
-tv "rm -f $remote"
 case "$result" in
   *'"installed"'*) ;;
   *) echo "install failed: ${result:-no answer from appInstallService}" >&2; exit 1 ;;

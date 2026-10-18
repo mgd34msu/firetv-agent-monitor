@@ -6,8 +6,42 @@ var STATUS_LABELS = {
   working: 'Working',
   waiting: 'Needs you',
   error: 'Error',
-  idle: 'Idle'
+  idle: 'Idle',
+  open: 'Open'
 };
+
+var KIND_LABELS = {
+  claude: 'Claude',
+  codex: 'Codex',
+  muse: 'Muse',
+  goodvibes: 'GoodVibes',
+  opencode: 'OpenCode'
+};
+
+function kindLabel(kind) {
+  return KIND_LABELS.hasOwnProperty(kind) ? KIND_LABELS[kind] : String(kind || 'Agent');
+}
+
+// 238K, 1.2M: token counts for the panel.
+function formatTokens(n) {
+  if (n >= 1e6) return (Math.round(n / 1e5) / 10) + 'M';
+  if (n >= 1e3) return Math.round(n / 1e3) + 'K';
+  return String(n);
+}
+
+// "in 3h 20m" or "Tue 2:00 PM" for a reset time, from UNIX seconds.
+function formatReset(resetsAt, nowSecs) {
+  if (!resetsAt) return '';
+  var left = resetsAt - nowSecs;
+  if (left <= 0) return 'resetting';
+  if (left < 86400) return 'resets in ' + formatAge(left);
+  var d = new Date(resetsAt * 1000);
+  var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  var h = d.getHours();
+  var ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return 'resets ' + days[d.getDay()] + ' ' + h + ':' + pad2(d.getMinutes()) + ' ' + ampm;
+}
 
 function statusClass(status) {
   return STATUS_LABELS.hasOwnProperty(status) ? status : 'unknown';
@@ -46,5 +80,8 @@ function pad2(n) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { statusClass: statusClass, statusLabel: statusLabel, formatAge: formatAge, formatClock: formatClock };
+  module.exports = {
+    statusClass: statusClass, statusLabel: statusLabel, kindLabel: kindLabel, formatAge: formatAge,
+    formatClock: formatClock, formatTokens: formatTokens, formatReset: formatReset
+  };
 }

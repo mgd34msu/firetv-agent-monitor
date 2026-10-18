@@ -1,10 +1,10 @@
 {
   "id": "org.lgagents.claudesessions",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "vendor": "lgagents",
   "type": "web",
   "main": "index.html",
-  "title": "Claude Sessions",
+  "title": "Agent Sessions",
   "icon": "icon.png",
   "largeIcon": "largeIcon.png",
   "iconColor": "#111417",

@@ -31,6 +31,15 @@ type Server struct {
 
 	mu     sync.RWMutex
 	latest []byte
+	usage  []byte // JSON array, added to the frame as "usage"
+}
+
+// SetUsage stores subscription usage (a JSON array) to add to every frame
+// as its "usage" field; nil leaves it out.
+func (s *Server) SetUsage(usage []byte) {
+	s.mu.Lock()
+	s.usage = usage
+	s.mu.Unlock()
 }
 
 // New returns a Server. An empty token disables authentication, which the
@@ -97,7 +106,7 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.mu.RLock()
-	frame := s.latest
+	frame, usage := s.latest, s.usage
 	s.mu.RUnlock()
 	if frame == nil {
 		w.Header().Set("Retry-After", "1")
@@ -105,6 +114,9 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
+	if len(usage) > 0 && bytes.HasSuffix(frame, []byte("}")) {
+		frame = append(append(append(frame[:len(frame)-1:len(frame)-1], `,"usage":`...), usage...), '}')
+	}
 	_, _ = w.Write(frame)
 }
 

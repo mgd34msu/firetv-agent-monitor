@@ -1,12 +1,20 @@
-/* Same geometry and colors as the Roku channel: a 1920 x 1080 scene with a
-   header and a 3 x 3 grid of 560 x 254 cards. */
+/* A 1920 x 1080 scene: header and a 2 x 3 grid of session cards on the left
+   two thirds, a divider, and a panel on the right third. */
+:root {
+  --bg: #111417;
+  --text: #eceff1;
+  --muted: #90a4ae;
+  --line: #2b343a;
+  --track: #263035;
+}
+
 html, body {
   margin: 0;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #111417;
-  color: #eceff1;
+  background: var(--bg);
+  color: var(--text);
   font-family: "LG Smart UI", "Museo Sans", "Helvetica Neue", Arial, sans-serif;
   cursor: none;
 }
@@ -26,75 +34,101 @@ html, body {
   top: 0;
   width: 1920px;
   height: 1080px;
-  transition: transform 2s ease;
 }
 
-#title, #clock {
+/* --- left: sessions ------------------------------------------------------- */
+
+#title {
   position: absolute;
-  top: 46px;
+  left: 72px;
+  top: 44px;
   font-size: 50px;
   font-weight: bold;
 }
-#title { left: 96px; }
-#clock { right: 96px; text-align: right; }
 
 #summary, #pageInfo {
   position: absolute;
   top: 110px;
   font-size: 28px;
-  color: #90a4ae;
+  color: var(--muted);
   white-space: nowrap;
 }
-#summary { left: 96px; width: 1100px; }
-#pageInfo { right: 96px; text-align: right; }
+#summary { left: 72px; width: 800px; }
+#pageInfo { left: 872px; width: 400px; text-align: right; }
 
 #grid {
   position: absolute;
-  left: 96px;
-  top: 170px;
-  width: 1728px;
+  left: 72px;
+  top: 168px;
+  width: 1200px;
   display: grid;
-  grid-template-columns: repeat(3, 560px);
-  grid-auto-rows: 254px;
+  grid-template-columns: repeat(2, 588px);
+  grid-auto-rows: 272px;
   gap: 24px;
 }
 
 #message {
   position: absolute;
-  left: 160px;
+  left: 72px;
   top: 470px;
-  width: 1600px;
+  width: 1200px;
   min-height: 140px;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
-  font-size: 44px;
+  font-size: 40px;
   color: #cfd8dc;
 }
 #message[hidden] { display: none; }
 
-/* --- card ------------------------------------------------------------------ */
+#divider {
+  position: absolute;
+  left: 1308px;
+  top: 48px;
+  width: 2px;
+  height: 984px;
+  background: var(--line);
+}
+
+/* --- card ----------------------------------------------------------------- */
 
 .card {
   position: relative;
   box-sizing: border-box;
-  padding: 22px 28px 0;
+  padding: 20px 26px 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
+.card .top {
+  display: flex;
+  align-items: baseline;
+  flex: none;
+}
 .card .name {
+  flex: 1;
+  min-width: 0;
   font-weight: bold;
   font-size: 40px;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex: none;
 }
 .card.titled .name { font-size: 32px; }
+.card .kind {
+  flex: none;
+  margin-left: 16px;
+  padding: 2px 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 20px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
 
 /* Centred between headline and status row, two lines at most. */
 .card .activity {
@@ -116,7 +150,7 @@ html, body {
 
 .card .row {
   flex: none;
-  height: 76px;
+  height: 72px;
   display: flex;
   align-items: flex-start;
   white-space: nowrap;
@@ -146,5 +180,126 @@ html, body {
 .card.waiting { background: #f9a825; color: #1a1a1a; }
 .card.error   { background: #c62828; color: #fff; }
 .card.idle    { background: #263238; color: #b0bec5; opacity: 0.55; }
+.card.open    { background: #37474f; color: #eceff1; }
 .card.unknown { background: #37474f; color: #fff; }
 .card.blinkOff { opacity: 0.35; }
+
+/* --- right: panel --------------------------------------------------------- */
+
+#panel {
+  position: absolute;
+  left: 1350px;
+  top: 44px;
+  width: 498px;
+  height: 990px;
+  overflow: hidden;
+}
+
+#clock {
+  font-size: 50px;
+  font-weight: bold;
+  text-align: right;
+  height: 84px;
+}
+
+.panelHeading {
+  margin: 22px 0 14px;
+  font-size: 24px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.provider { margin-bottom: 22px; }
+.provider .head {
+  display: flex;
+  align-items: baseline;
+  font-size: 30px;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+.provider .plan {
+  margin-left: 12px;
+  font-size: 22px;
+  font-weight: normal;
+  color: var(--muted);
+  text-transform: capitalize;
+}
+.provider .asOf {
+  margin-left: auto;
+  font-size: 20px;
+  font-weight: normal;
+  color: var(--muted);
+}
+.provider .note { font-size: 22px; color: var(--muted); }
+
+.window {
+  display: grid;
+  grid-template-columns: 70px 1fr 74px;
+  align-items: center;
+  column-gap: 14px;
+  margin: 6px 0 2px;
+  font-size: 24px;
+}
+.window .label { color: var(--muted); }
+.window .pct { text-align: right; font-weight: bold; }
+.window .resets {
+  grid-column: 2 / 4;
+  font-size: 20px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.bar {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--track);
+  overflow: hidden;
+}
+.bar .fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 7px;
+  background: #66bb6a;
+}
+.bar .fill.warn { background: #f9a825; }
+.bar .fill.high { background: #e53935; }
+
+.tokenRow { margin-bottom: 14px; }
+.tokenRow .line {
+  display: flex;
+  align-items: baseline;
+  font-size: 24px;
+  white-space: nowrap;
+  margin-bottom: 6px;
+}
+.tokenRow .dot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  margin-right: 10px;
+  align-self: center;
+}
+.tokenRow .who {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tokenRow .count {
+  flex: none;
+  margin-left: 12px;
+  color: var(--muted);
+}
+.tokenMore { font-size: 22px; color: var(--muted); }
+
+.dot.working { background: #43a047; }
+.dot.waiting { background: #f9a825; }
+.dot.error   { background: #e53935; }
+.dot.idle    { background: #546e7a; }
+.dot.open, .dot.unknown { background: #90a4ae; }

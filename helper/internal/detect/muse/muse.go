@@ -143,11 +143,11 @@ func (s *Source) Sessions(ctx context.Context, now time.Time) ([]agent.Session, 
 }
 
 const byID = `SELECT session_id, session_log_path, COALESCE(workspace_root, ''),
-  COALESCE(NULLIF(session_name, ''), NULLIF(effective_long_title, ''), title)
+  COALESCE(session_name, '')
 FROM sessions WHERE session_id = ?`
 
 const byDir = `SELECT session_id, session_log_path, COALESCE(workspace_root, ''),
-  COALESCE(NULLIF(session_name, ''), NULLIF(effective_long_title, ''), title)
+  COALESCE(session_name, '')
 FROM sessions WHERE workspace_root = ?
 ORDER BY COALESCE(msp_last_activity_at_us, updated_at_us, 0) DESC LIMIT 1`
 

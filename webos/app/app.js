@@ -1,10 +1,15 @@
-// The whole screen: a header (title, counts, clock, page) and nine cards per
-// page, fed by the Poller. Port of the Roku channel's SessionsScene and
-// SessionCard. Reads window.LGAGENTS_CONFIG ({url, token}) from config.js,
+// The whole screen: a header (title, counts, page) and six session cards per
+// page on the left two thirds; on the right third, the clock, plan usage per
+// provider and context usage per session. Fed by the Poller. The cards are a
+// port of the Roku channel's SessionsScene and SessionCard. Reads window.LGAGENTS_CONFIG ({url, token}) from config.js,
 // which build.sh writes.
 'use strict';
 
-var PER_PAGE = 9;
+var PER_PAGE = 6;
+// The panel lists this many sessions; the rest are counted.
+var TOKEN_ROWS = 9;
+// Providers with rate limits; Muse is listed even before it reports any.
+var LIMIT_KINDS = ['claude', 'codex', 'muse'];
 var KEY = {
   LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, BACK: 461,
   REWIND: 412, FAST_FORWARD: 417, CH_UP: 33, CH_DOWN: 34
@@ -17,7 +22,9 @@ var el = {
   summary: document.getElementById('summary'),
   clock: document.getElementById('clock'),
   pageInfo: document.getElementById('pageInfo'),
-  message: document.getElementById('message')
+  message: document.getElementById('message'),
+  limits: document.getElementById('limits'),
+  tokens: document.getElementById('tokens')
 };
 
 var state = {
@@ -107,19 +114,21 @@ function render() {
   for (var i = 0; i < visible.length; i++) renderCard(cards[i], visible[i], elapsed);
 
   renderHeader(frame, agents, pages, elapsed);
+  renderPanel(frame, agents, elapsed);
 }
 
 function ensureCards(count) {
   while (cards.length < count) {
     var node = document.createElement('div');
     node.innerHTML =
-      '<div class="name"></div>' +
+      '<div class="top"><div class="name"></div><div class="kind"></div></div>' +
       '<div class="activity"><span></span></div>' +
       '<div class="row"><span class="status"></span><span class="folder"></span></div>' +
       '<div class="ctxTrack"></div><div class="ctxFill"></div>';
     var card = {
       node: node,
       name: node.querySelector('.name'),
+      kind: node.querySelector('.kind'),
       activityBox: node.querySelector('.activity'),
       activity: node.querySelector('.activity span'),
       status: node.querySelector('.status'),
@@ -151,6 +160,7 @@ function renderCard(card, a, elapsed) {
   if (card.node.className !== cls) card.node.className = cls;
 
   setText(card.name, title !== '' ? title : name);
+  setText(card.kind, kindLabel(a.kind));
   setText(card.folder, title !== '' ? name : '');
   setText(card.activity, activity);
   card.activityBox.style.visibility = activity === '' ? 'hidden' : 'visible';
@@ -187,6 +197,79 @@ function renderHeader(frame, agents, pages, elapsed) {
   var more = typeof frame.more === 'number' ? frame.more : 0;
   if (more > 0) info += (info ? '   ' : '') + '+' + more + ' more';
   setText(el.pageInfo, info);
+}
+
+// --- panel -----------------------------------------------------------------
+
+// Rebuilt only when its text changes, so the TV is not relaying out every
+// second for nothing.
+var panelCache = { limits: '', tokens: '' };
+
+function esc(text) {
+  return String(text).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+}
+
+function barHtml(fraction, cls) {
+  var pct = Math.max(0, Math.min(1, fraction)) * 100;
+  return '<div class="bar"><div class="fill ' + (cls || '') + '" style="width:' + pct.toFixed(1) + '%"></div></div>';
+}
+
+function severity(used) {
+  return used >= 90 ? 'high' : used >= 70 ? 'warn' : '';
+}
+
+function renderPanel(frame, agents, elapsed) {
+  var nowSecs = frame.now + elapsed;
+  var usage = Array.isArray(frame.usage) ? frame.usage : [];
+  var byKind = {};
+  usage.forEach(function (p) { if (p && p.kind) byKind[p.kind] = p; });
+
+  var html = '';
+  LIMIT_KINDS.forEach(function (kind) {
+    var p = byKind[kind];
+    html += '<div class="provider"><div class="head">' + esc(kindLabel(kind));
+    if (p && p.plan) html += '<span class="plan">' + esc(p.plan) + '</span>';
+    if (p && p.asOf && nowSecs - p.asOf > 900) html += '<span class="asOf">as of ' + esc(formatAge(nowSecs - p.asOf)) + ' ago</span>';
+    html += '</div>';
+    var windows = p && Array.isArray(p.windows) ? p.windows : [];
+    if (windows.length === 0) {
+      html += '<div class="note">' + (kind === 'muse' ? 'Muse does not share its limits yet' : 'No usage reported yet') + '</div>';
+    }
+    windows.forEach(function (w) {
+      var used = typeof w.used === 'number' ? w.used : 0;
+      html += '<div class="window"><span class="label">' + esc(w.label) + '</span>' +
+        barHtml(used / 100, severity(used)) +
+        '<span class="pct">' + used + '%</span>' +
+        '<span class="resets">' + esc(formatReset(w.resetsAt, nowSecs)) + '</span></div>';
+    });
+    html += '</div>';
+  });
+  if (html !== panelCache.limits) {
+    el.limits.innerHTML = html;
+    panelCache.limits = html;
+  }
+
+  html = '';
+  agents.slice(0, TOKEN_ROWS).forEach(function (a) {
+    var title = typeof a.title === 'string' && a.title !== '' ? a.title : a.name;
+    var ctx = a.ctx;
+    var used = ctx && typeof ctx.used === 'number' ? ctx.used : null;
+    var limit = ctx && typeof ctx.limit === 'number' && ctx.limit > 0 ? ctx.limit : null;
+    var count = used === null ? 'no data' : formatTokens(used) + (limit ? ' / ' + formatTokens(limit) : '');
+    html += '<div class="tokenRow"><div class="line">' +
+      '<span class="dot ' + statusClass(a.status) + '"></span>' +
+      '<span class="who">' + esc(kindLabel(a.kind)) + ' \u00b7 ' + esc(title) + '</span>' +
+      '<span class="count">' + esc(count) + '</span></div>' +
+      (limit ? barHtml(used / limit, severity(used / limit * 100)) : '') + '</div>';
+  });
+  if (agents.length > TOKEN_ROWS) html += '<div class="tokenMore">+' + (agents.length - TOKEN_ROWS) + ' more</div>';
+  if (agents.length === 0) html = '<div class="tokenMore">No sessions</div>';
+  if (html !== panelCache.tokens) {
+    el.tokens.innerHTML = html;
+    panelCache.tokens = html;
+  }
 }
 
 // --- remote ------------------------------------------------------------------

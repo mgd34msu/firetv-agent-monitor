@@ -2,19 +2,29 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Claude Sessions</title>
+  <title>Agent Sessions</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- A 1920 x 1080 stage, scaled to the window. -->
+  <!-- A 1920 x 1080 stage, scaled to the window: session cards on the left
+       two thirds, a panel with plan usage and per-session tokens on the right. -->
   <div id="stage">
     <div id="root">
-      <div id="title">Claude sessions</div>
+      <div id="title">Agent sessions</div>
       <div id="summary"></div>
-      <div id="clock"></div>
       <div id="pageInfo"></div>
       <div id="grid"></div>
       <div id="message" hidden></div>
+
+      <div id="divider"></div>
+
+      <div id="panel">
+        <div id="clock"></div>
+        <div class="panelHeading">Plan usage</div>
+        <div id="limits"></div>
+        <div class="panelHeading">Context by session</div>
+        <div id="tokens"></div>
+      </div>
     </div>
   </div>
   <script src="config.js"></script>

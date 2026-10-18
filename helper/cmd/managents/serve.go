@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net"
@@ -20,6 +21,7 @@ import (
 	"github.com/tonylook/managents/helper/internal/discovery"
 	"github.com/tonylook/managents/helper/internal/httpserve"
 	"github.com/tonylook/managents/helper/internal/process"
+	"github.com/tonylook/managents/helper/internal/usage"
 )
 
 // serveCommand publishes Claude Code, Codex, OpenCode, Muse Code and
@@ -89,6 +91,7 @@ func serveCommand(ctx context.Context, inv *invocation) error {
 	default:
 		startDiscovery(runCtx, token, listener.Addr(), logger)
 	}
+	go pollUsage(runCtx, usage.NewPoller(home), server)
 	runnerDone := make(chan error, 1)
 	go func() {
 		runnerDone <- app.NewRunner(sources, server, logger).Run(runCtx)
@@ -140,4 +143,20 @@ func startDiscovery(ctx context.Context, token string, httpAddr net.Addr, logger
 		}
 	}()
 	logger.Debug("answering LAN discovery", "port", tcp.Port)
+}
+
+// pollUsage refreshes the subscription usage served with every frame.
+func pollUsage(ctx context.Context, poller *usage.Poller, server *httpserve.Server) {
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+	for {
+		if data, err := json.Marshal(poller.Snapshot(ctx, time.Now())); err == nil {
+			server.SetUsage(data)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }

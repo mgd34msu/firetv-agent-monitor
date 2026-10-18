@@ -96,6 +96,20 @@ func TestCrossOriginReadsAndPreflight(t *testing.T) {
 	}
 }
 
+func TestUsageIsAddedToTheFrame(t *testing.T) {
+	s := New("")
+	s.Broadcast([]byte(`{"v":1,"t":"state","agents":[]}`))
+	s.SetUsage([]byte(`[{"kind":"codex"}]`))
+	_, body := get(t, s.Handler(), "GET", "/state", "")
+	if body != `{"v":1,"t":"state","agents":[],"usage":[{"kind":"codex"}]}` {
+		t.Fatalf("got %q", body)
+	}
+	_, body = get(t, s.Handler(), "GET", "/state", "")
+	if body != `{"v":1,"t":"state","agents":[],"usage":[{"kind":"codex"}]}` {
+		t.Fatalf("second answer differs: %q", body)
+	}
+}
+
 func TestIsLoopback(t *testing.T) {
 	cases := map[string]bool{
 		"127.0.0.1:8787": true, "localhost:8787": true, "[::1]:8787": true,
