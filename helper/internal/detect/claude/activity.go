@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"strings"
-	"unicode"
 
 	"github.com/tonylook/managents/helper/internal/agent"
+	"github.com/tonylook/managents/helper/internal/detect"
 )
 
 // MaxActivityBytes bounds an activity line; cards show it on one or two lines.
@@ -346,85 +346,6 @@ func (e activityEntry) blocks() (blocks []activityBlock, prompt bool) {
 	return blocks, false
 }
 
-// closingSentence is the question a reply ends with, or else the last
-// sentence of its last line of prose, without Markdown.
-func closingSentence(text string) string {
-	lines := cleanLines(text)
-	all := sentences(strings.Join(lines, " "))
-	for i := len(all) - 1; i >= 0; i-- {
-		if strings.HasSuffix(all[i], "?") {
-			return all[i]
-		}
-	}
-	if len(lines) == 0 {
-		return ""
-	}
-	last := sentences(lines[len(lines)-1])
-	if len(last) == 0 {
-		return ""
-	}
-	return last[len(last)-1]
-}
-
-func sentences(text string) []string {
-	var result []string
-	start := 0
-	runes := []rune(text)
-	for i, r := range runes {
-		end := (r == '.' || r == '?' || r == '!') && (i+1 == len(runes) || unicode.IsSpace(runes[i+1]))
-		if end {
-			if s := strings.TrimSpace(string(runes[start : i+1])); s != "" {
-				result = append(result, s)
-			}
-			start = i + 1
-		}
-	}
-	if s := strings.TrimSpace(string(runes[start:])); s != "" {
-		result = append(result, s)
-	}
-	return result
-}
-
-// clean flattens Markdown and whitespace to one plain line.
-func clean(text string) string { return strings.Join(cleanLines(text), " ") }
-
-// cleanLines is text's lines of prose without Markdown: code blocks and tables
-// are left out, and so are empty lines.
-func cleanLines(text string) []string {
-	var lines []string
-	inCode := false
-	for _, line := range strings.Split(text, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") {
-			inCode = !inCode
-			continue
-		}
-		if inCode || trimmed == "" || strings.HasPrefix(trimmed, "|") {
-			continue
-		}
-		trimmed = strings.TrimLeft(trimmed, "#>-*0123456789. ")
-		for _, mark := range []string{"**", "__", "`"} {
-			trimmed = strings.ReplaceAll(trimmed, mark, "")
-		}
-		if trimmed = strings.Join(strings.Fields(stripLinks(trimmed)), " "); trimmed != "" {
-			lines = append(lines, trimmed)
-		}
-	}
-	return lines
-}
-
-// stripLinks turns [text](url) into text.
-func stripLinks(s string) string {
-	for {
-		open := strings.Index(s, "](")
-		if open < 0 {
-			return s
-		}
-		start := strings.LastIndex(s[:open], "[")
-		end := strings.Index(s[open:], ")")
-		if start < 0 || end < 0 {
-			return s
-		}
-		s = s[:start] + s[start+1:open] + s[open+end+1:]
-	}
-}
+// The prose helpers live in package detect, shared with the other detectors.
+func closingSentence(text string) string { return detect.ClosingSentence(text) }
+func clean(text string) string           { return detect.Clean(text) }

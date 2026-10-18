@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/tonylook/managents/helper/internal/agent"
+	"github.com/tonylook/managents/helper/internal/detect"
 	"github.com/tonylook/managents/helper/internal/process"
 )
 
@@ -70,6 +71,9 @@ type ProcessFinder interface {
 type Source struct {
 	Processes ProcessFinder
 	Store     Store
+	// Activity adds a line on what a session is doing or last said, read
+	// from the rollout's messages and tool calls.
+	Activity bool
 }
 
 // NewSource returns a Source for the Codex installation of the user whose
@@ -142,6 +146,11 @@ func (s *Source) toSession(ctx context.Context, p process.Info, commands *comman
 	}
 	session.Context = summary.context
 	session.Status, session.Since = statusOf(summary, p.StartedAt, now)
+	if s.Activity {
+		if tail, _, err := detect.ReadTail(thread.RolloutPath, rolloutTail); err == nil {
+			session.Activity = activityOf(tail, session.Status)
+		}
+	}
 	if session.Status != agent.StatusWorking || summary.openCall.IsZero() || now.Sub(summary.openCall) <= toolStaleAfter {
 		return session, nil
 	}

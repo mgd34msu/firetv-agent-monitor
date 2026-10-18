@@ -208,6 +208,8 @@ type state struct {
 	activity string
 	context  *agent.ContextUsage
 	model    string
+	// The turn's newest step, last words, and open question.
+	doing, said, ask string
 }
 
 type record struct {
@@ -224,6 +226,11 @@ type record struct {
 				Header   string `json:"header"`
 				Question string `json:"question"`
 			} `json:"questions"`
+			Text      string `json:"text"` // assistant_message_committed
+			ToolCalls []struct {
+				Name string `json:"name"`
+				Args string `json:"args"`
+			} `json:"tool_calls"` // assistant_tool_calls_committed
 			Model string `json:"model"`
 			Usage *struct {
 				InputTokens int `json:"input_tokens"` // includes cached tokens
@@ -262,7 +269,8 @@ func readState(path string, now time.Time) (state, error) {
 		at := time.UnixMicro(r.RecordedAt)
 		last = at
 		if r.Payload.Outcome != nil && r.Payload.Outcome.Kind == "top_level_turn_started" {
-			st.set(agent.StatusWorking, at, "")
+			st.set(agent.StatusWorking, at)
+			st.doing, st.said, st.ask = "", "", ""
 			continue
 		}
 		ev := r.Payload.Event
@@ -275,17 +283,29 @@ func readState(path string, now time.Time) (state, error) {
 			if len(ev.Questions) > 0 {
 				ask = cmp.Or(ev.Questions[0].Question, ev.Questions[0].Header)
 			}
-			st.set(agent.StatusWaiting, at, oneLine(ask, 100))
+			st.set(agent.StatusWaiting, at)
+			st.ask = ask
 		case "user_input_prompt_settled":
-			st.set(agent.StatusWorking, at, "")
+			st.set(agent.StatusWorking, at)
+			st.ask = ""
 		case "terminal":
 			if ev.Terminal == "completed" || ev.Terminal == "cancelled" {
-				st.set(agent.StatusWaiting, at, "")
+				st.set(agent.StatusWaiting, at)
 			} else {
-				st.set(agent.StatusError, at, "")
+				st.set(agent.StatusError, at)
 			}
 		case "model_failure_terminal_intent":
-			st.set(agent.StatusError, at, "")
+			st.set(agent.StatusError, at)
+		case "assistant_message_committed":
+			if said := detect.ClosingSentence(ev.Text); said != "" {
+				st.said = said
+			}
+		case "assistant_tool_calls_committed":
+			for _, call := range ev.ToolCalls {
+				if d := describeTool(call.Name, call.Args); d != "" {
+					st.doing = d
+				}
+			}
 		case "model_completed":
 			if u := ev.Usage; u != nil && u.InputTokens > 0 {
 				st.context = &agent.ContextUsage{Used: u.InputTokens}
@@ -297,21 +317,72 @@ func readState(path string, now time.Time) (state, error) {
 		// The turn marker is older than the tail: a long turn while the log
 		// still moves, else finished since the last write.
 		if now.Sub(last) < recentWrite {
-			st.set(agent.StatusWorking, last, "")
+			st.set(agent.StatusWorking, last)
 		} else {
-			st.set(agent.StatusWaiting, last, "")
+			st.set(agent.StatusWaiting, last)
 		}
 	}
+	switch st.status {
+	case agent.StatusWorking:
+		st.activity = st.doing
+	case agent.StatusWaiting:
+		st.activity = cmp.Or(st.ask, st.said)
+	default:
+		st.activity = st.said
+	}
+	st.activity = oneLine(st.activity, 100)
 	return st, nil
 }
 
-func (st *state) set(status agent.Status, at time.Time, activity string) {
+func (st *state) set(status agent.Status, at time.Time) {
 	if !st.found || st.status != status {
 		st.since = at
 	}
 	st.found = true
 	st.status = status
-	st.activity = activity
+}
+
+// describeTool says in a few words what a Muse tool call does.
+func describeTool(name, rawArgs string) string {
+	var args struct {
+		Command     string `json:"command"`
+		Description string `json:"description"`
+		Path        string `json:"path"`
+		CurrentWork string `json:"current_work"` // report_progress
+		Todos       []struct {
+			Content string `json:"content"`
+			Title   string `json:"title"`
+			Status  string `json:"status"`
+		} `json:"todos"`
+	}
+	_ = json.Unmarshal([]byte(rawArgs), &args)
+	switch name {
+	case "bash":
+		if args.Description != "" {
+			return detect.Clean(args.Description)
+		}
+		return detect.DescribeCommand(args.Command)
+	case "read_file":
+		return "Reading " + filepath.Base(args.Path)
+	case "edit_file", "write_file":
+		return "Editing " + filepath.Base(args.Path)
+	case "search":
+		return "Searching the code"
+	case "web_fetch", "web_search":
+		return "Searching the web"
+	case "report_progress":
+		return detect.Clean(args.CurrentWork)
+	case "write_todos":
+		for _, t := range args.Todos {
+			if t.Status == "in_progress" {
+				return detect.Clean(cmp.Or(t.Content, t.Title))
+			}
+		}
+		return ""
+	case "bash_input", "update_goal":
+		return ""
+	}
+	return "Using " + strings.ReplaceAll(name, "_", " ")
 }
 
 var recordedAtField = []byte(`"recorded_at":`)

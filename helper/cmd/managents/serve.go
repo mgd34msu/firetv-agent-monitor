@@ -63,11 +63,13 @@ func serveCommand(ctx context.Context, inv *invocation) error {
 	procs := process.System{}
 	museSource := muse.NewSource(home, procs)
 	museSource.Titles, museSource.Activity = *titles, *activity
+	codexSource := codex.NewSource(home, procs)
+	codexSource.Activity = *activity
 	goodvibesSource := goodvibes.NewSource(home)
 	goodvibesSource.Titles, goodvibesSource.Activity = *titles, *activity
 	sources := []detect.Source{
 		claudeSource,
-		codex.NewSource(home, procs),
+		codexSource,
 		&opencode.Source{Processes: procs, Store: opencode.SQLiteStore{Path: opencode.DefaultDatabasePath(home)}},
 		museSource,
 		goodvibesSource,
