@@ -56,6 +56,9 @@ type Session struct {
 	// Activity is a few words on what the session is doing, or what it needs
 	// while it waits, when the detector was asked for it. Empty otherwise.
 	Activity string
+	// Transcript is the session's log file, for the read-only session view
+	// of network displays. It never goes over the wire. Empty if unknown.
+	Transcript string
 }
 
 // Age is how long the session has been in its current status.

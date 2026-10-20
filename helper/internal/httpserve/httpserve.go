@@ -18,6 +18,7 @@ package httpserve
 import (
 	"bytes"
 	"crypto/subtle"
+	"encoding/json"
 	"net"
 	"net/http"
 	"sync"
@@ -32,6 +33,10 @@ type Server struct {
 	mu     sync.RWMutex
 	latest []byte
 	usage  []byte // JSON array, added to the frame as "usage"
+
+	// Session, when set, answers GET /session?id=<agent id> with that
+	// session's recent conversation (any JSON value), or ok false.
+	Session func(id string) (any, bool, error)
 }
 
 // SetUsage stores subscription usage (a JSON array) to add to every frame
@@ -77,6 +82,8 @@ func (s *Server) Handler() http.Handler {
 		_, _ = w.Write([]byte("ok"))
 	})
 	mux.HandleFunc("GET /state", s.handleState)
+	mux.HandleFunc("OPTIONS /session", preflight)
+	mux.HandleFunc("GET /session", s.handleSession)
 	return allowCrossOrigin(mux)
 }
 
@@ -118,6 +125,32 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		frame = append(append(append(frame[:len(frame)-1:len(frame)-1], `,"usage":`...), usage...), '}')
 	}
 	_, _ = w.Write(frame)
+}
+
+// handleSession serves the read-only session view, when it is enabled. It
+// shares /state's token.
+func (s *Server) handleSession(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if !s.authorized(r) {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="managents"`)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if s.Session == nil {
+		http.Error(w, "session view is off; start serve with --transcripts", http.StatusNotFound)
+		return
+	}
+	body, ok, err := s.Session(r.URL.Query().Get("id"))
+	switch {
+	case err != nil:
+		http.Error(w, "cannot read the session", http.StatusInternalServerError)
+		return
+	case !ok:
+		http.Error(w, "no such session", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(body)
 }
 
 func (s *Server) authorized(r *http.Request) bool {

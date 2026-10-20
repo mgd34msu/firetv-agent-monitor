@@ -33,6 +33,11 @@ The helper refuses to listen on a non-loopback address without a token.
 |---|---|---|---|
 | `GET /state` | yes | `200`, `application/json`, the latest `state` frame | `401` wrong or missing token; `503` with `Retry-After: 1` before the first frame exists |
 | `GET /healthz` | no | `200`, `text/plain`, `ok` | none |
+| `GET /session?id=<agent id>` | yes | `200`, `application/json`: `{id, kind, title, name, messages}`, the session's newest messages (up to 200, oldest first, each `{role: user/assistant/tool, text, tool, error}`) | `404` when serve runs without `--transcripts` or the id is not an open session; `401` wrong token |
+
+`/session` is off unless serve is started with `--transcripts`. It sends conversation content (prompts, replies,
+tool calls and the first 600 bytes of tool output), so it is for a display you trust, on your own network. Every
+route also answers CORS preflights and allows cross-origin reads, for displays that are web pages.
 
 Any other method on these paths answers `405`. Unknown paths answer `404`.
 

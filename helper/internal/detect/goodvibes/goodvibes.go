@@ -156,6 +156,7 @@ func (s *Source) Sessions(ctx context.Context, now time.Time) ([]agent.Session, 
 		if r.Kind == "tui" {
 			// The daemon does not see a terminal session's turns; its files do.
 			conv, ok := s.readConversation(r.Project, r.ID)
+			session.Transcript = recoveryPath(r.Project, r.ID)
 			switch {
 			case s.turnRunning(r.ID):
 				session.Status = agent.StatusWorking

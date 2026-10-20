@@ -18,6 +18,17 @@
 
       <div id="divider"></div>
 
+      <div id="detail" hidden>
+        <div id="detailHead">
+          <span id="detailKind" class="kindTag"></span>
+          <div id="detailTitle"></div>
+          <button id="detailClose" type="button">&#x2715; Close</button>
+          <div id="detailSub"></div>
+        </div>
+        <div id="detailMessages"></div>
+        <div id="detailHint">Read only &middot; scroll with the wheel, Up/Down or CH +/- &middot; Back to close</div>
+      </div>
+
       <div id="panel">
         <div id="clock"></div>
         <div class="panelHeading">Plan usage</div>
@@ -31,5 +42,6 @@
   <script src="format.js"></script>
   <script src="poller.js"></script>
   <script src="app.js"></script>
+  <script src="detail.js"></script>
 </body>
 </html>

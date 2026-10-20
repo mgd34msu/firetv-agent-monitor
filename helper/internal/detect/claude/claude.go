@@ -185,6 +185,9 @@ func (s *Source) toSession(r record, now time.Time) agent.Session {
 		Since:     r.changedAt(now),
 		StartedAt: time.UnixMilli(r.StartedAt),
 	}
+	if path, err := s.transcriptPath(r.SessionID); err == nil {
+		session.Transcript = path
+	}
 	summary, err := s.readTranscript(r.SessionID)
 	if err == nil && summary.context != nil {
 		session.Context = &agent.ContextUsage{Used: summary.context.Used, Limit: s.contextLimit(summary.context.Used)}

@@ -137,6 +137,7 @@ func (s *Source) toSession(ctx context.Context, p process.Info, commands *comman
 	if err != nil || !found {
 		return session, err
 	}
+	session.Transcript = thread.RolloutPath
 	summary, err := summarizeRollout(thread.RolloutPath)
 	if errors.Is(err, fs.ErrNotExist) {
 		return session, nil // Codex writes the rollout with the first prompt

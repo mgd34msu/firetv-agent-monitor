@@ -58,7 +58,7 @@ type conversation struct {
 
 // readConversation reads the session's recovery snapshot, or reports false.
 func (s *Source) readConversation(project, id string) (conversation, bool) {
-	path := filepath.Join(project, ".goodvibes", "tui", "recovery", "recovery-"+id+".jsonl")
+	path := recoveryPath(project, id)
 	var c conversation
 	if head, err := readHead(path, 8<<10); err == nil {
 		var meta recoveryLine
@@ -104,6 +104,10 @@ func (s *Source) readConversation(project, id string) (conversation, bool) {
 		c.context.Limit = s.contextLimit(c.model)
 	}
 	return c, true
+}
+
+func recoveryPath(project, id string) string {
+	return filepath.Join(project, ".goodvibes", "tui", "recovery", "recovery-"+id+".jsonl")
 }
 
 func readHead(path string, n int) ([]byte, error) {

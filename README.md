@@ -76,8 +76,10 @@ Muse, GoodVibes  ───> reads session files    GET /state, once      draws t
    ```sh
    mkdir -p ~/.config/managents
    (umask 077; openssl rand -hex 16 > ~/.config/managents/token)
-   MANAGENTS_TOKEN=$(cat ~/.config/managents/token) ~/bin/managents serve --addr :8787
+   MANAGENTS_TOKEN=$(cat ~/.config/managents/token) ~/bin/managents serve --addr :8787 --transcripts
    ```
+
+   Leave out `--transcripts` if you do not want the TV to be able to show conversations.
 
    If a firewall is on, open TCP and UDP 8787 to your LAN only, for example
    `sudo ufw allow from 192.168.0.0/24 to any port 8787`.
@@ -93,7 +95,11 @@ Muse, GoodVibes  ───> reads session files    GET /state, once      draws t
 
 ## Using it
 
-- Six cards per page. Left/right, up/down, or channel up/down turn pages; it returns to the first page after 30 seconds.
+- Six cards per page. Point at a card with the Magic Remote, or move the highlight with the arrow keys; channel
+  up/down turn pages. It returns to the first page after 30 seconds.
+- **Click a card (or press OK) to open the session**, read only: your prompts, the agent's replies, its tool calls
+  and the start of their output, refreshed every two seconds. Scroll with the remote's wheel, Up/Down or channel
+  up/down; Back or Close returns. This needs the helper started with `--transcripts`.
 - The panel lists sessions until it runs out of room, then counts the rest.
 - Back closes the app.
 
@@ -101,7 +107,8 @@ Muse, GoodVibes  ───> reads session files    GET /state, once      draws t
 
 The server sends each session's folder name, title, status, age, context usage and a short activity line, plus your
 plans' usage percentages. Titles and activity lines come from your conversations, so anyone who can see the TV can read
-them: start the server with `--titles=false` or `--activity=false` to leave them out.
+them: start the server with `--titles=false` or `--activity=false` to leave them out. With `--transcripts`, the
+helper also serves each open session's recent conversation to the TV's session view, behind the same token.
 
 To read plan limits the helper uses the logins Claude Code and the Muse CLI already keep on your computer, and sends
 them only to Anthropic and Meta respectively. Muse's usage call also mints an inference key, which the helper discards

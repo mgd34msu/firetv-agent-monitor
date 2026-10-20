@@ -16,7 +16,6 @@ html, body {
   background: var(--bg);
   color: var(--text);
   font-family: "LG Smart UI", "Museo Sans", "Helvetica Neue", Arial, sans-serif;
-  cursor: none;
 }
 
 #stage {
@@ -303,3 +302,157 @@ html, body {
 .dot.error   { background: #e53935; }
 .dot.idle    { background: #546e7a; }
 .dot.open, .dot.unknown { background: #90a4ae; }
+
+/* --- pointer and focus ------------------------------------------------------ */
+
+.card { cursor: pointer; transition: transform 0.12s ease, box-shadow 0.12s ease; }
+.card.focused {
+  transform: scale(1.025);
+  box-shadow: 0 0 0 6px #eceff1, 0 12px 40px rgba(0, 0, 0, 0.6);
+  z-index: 1;
+}
+
+/* --- read-only session view -------------------------------------------------- */
+
+#detail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  background: var(--bg);
+  z-index: 10;
+}
+#detail[hidden] { display: none; }
+
+#detailHead {
+  position: absolute;
+  left: 72px;
+  right: 72px;
+  top: 36px;
+  height: 130px;
+  border-bottom: 2px solid var(--line);
+}
+#detailHead .kindTag {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 6px;
+  background: #37474f;
+  font-size: 22px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+#detail.status-working #detailHead .kindTag { background: #2e7d32; }
+#detail.status-waiting #detailHead .kindTag { background: #f9a825; color: #1a1a1a; }
+#detail.status-error #detailHead .kindTag { background: #c62828; }
+#detailTitle {
+  position: absolute;
+  left: 0;
+  right: 260px;
+  top: 40px;
+  font-size: 42px;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#detailSub {
+  position: absolute;
+  left: 0;
+  top: 96px;
+  font-size: 24px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+#detailClose {
+  position: absolute;
+  right: 0;
+  top: 8px;
+  padding: 14px 28px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: #1c2328;
+  color: var(--text);
+  font: inherit;
+  font-size: 28px;
+  cursor: pointer;
+}
+#detailClose:hover, #detailClose:focus { background: #eceff1; color: #111417; outline: none; }
+
+#detailMessages {
+  position: absolute;
+  left: 72px;
+  right: 56px;
+  top: 190px;
+  bottom: 70px;
+  overflow-y: auto;
+  padding-right: 16px;
+}
+#detailMessages::-webkit-scrollbar { width: 14px; }
+#detailMessages::-webkit-scrollbar-track { background: var(--track); border-radius: 7px; }
+#detailMessages::-webkit-scrollbar-thumb { background: #546e7a; border-radius: 7px; }
+
+#detailHint {
+  position: absolute;
+  left: 72px;
+  bottom: 22px;
+  font-size: 20px;
+  color: var(--muted);
+}
+
+.detailNote { margin-top: 200px; text-align: center; font-size: 34px; color: var(--muted); }
+
+.msg { margin: 0 0 14px; }
+.msg .who {
+  font-size: 20px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 22px 0 6px;
+}
+.msg .text {
+  font-size: 28px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.msg.user .text {
+  display: inline-block;
+  max-width: 1500px;
+  padding: 16px 22px;
+  border-radius: 14px;
+  background: #1e3a5f;
+}
+.msg.call {
+  display: flex;
+  align-items: baseline;
+  font-size: 22px;
+  color: #b0bec5;
+}
+.msg.call .tool {
+  flex: none;
+  margin-right: 14px;
+  padding: 2px 10px;
+  border-radius: 6px;
+  background: #263238;
+  font-weight: bold;
+}
+.msg.call code, .msg.output pre {
+  font-family: "DejaVu Sans Mono", "Liberation Mono", monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.msg.call code { flex: 1; min-width: 0; max-height: 92px; overflow: hidden; }
+.msg.output pre {
+  margin: 0 0 0 24px;
+  padding: 10px 16px;
+  border-left: 4px solid #37474f;
+  font-size: 19px;
+  line-height: 1.35;
+  color: #78909c;
+  max-height: 160px;
+  overflow: hidden;
+}
+.msg.output.error pre { border-left-color: #e53935; color: #ef9a9a; }

@@ -1,8 +1,12 @@
 // The whole screen: a header (title, counts, page) and six session cards per
 // page on the left two thirds; on the right third, the clock, plan usage per
 // provider and context usage per session. Fed by the Poller. The cards are a
-// port of the Roku channel's SessionsScene and SessionCard. Reads window.LGAGENTS_CONFIG ({url, token}) from config.js,
-// which build.sh writes.
+// port of the Roku channel's SessionsScene and SessionCard. Reads
+// window.LGAGENTS_CONFIG ({url, token}) from config.js, which build.sh writes.
+//
+// The Magic Remote's pointer highlights a card and a click opens it in the
+// read-only session view (detail.js); the arrow keys move the highlight and
+// OK opens it.
 'use strict';
 
 var PER_PAGE = 6;
@@ -11,7 +15,7 @@ var TOKEN_ROWS = 9;
 // Providers with rate limits; Muse is listed even before it reports any.
 var LIMIT_KINDS = ['claude', 'codex', 'muse'];
 var KEY = {
-  LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, BACK: 461,
+  LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, ENTER: 13, BACK: 461,
   REWIND: 412, FAST_FORWARD: 417, CH_UP: 33, CH_DOWN: 34
 };
 
@@ -33,7 +37,8 @@ var state = {
   page: 0,
   lastKey: Date.now(),
   blinkOn: true,
-  poller: null
+  poller: null,
+  focus: -1        // highlighted card on this page, -1 for none
 };
 var cards = [];
 
@@ -81,8 +86,9 @@ function tick() {
     showMessage('Reconnecting... ' + reason);
     return;
   }
-  if (state.page > 0 && secondsSince(state.lastKey) >= 30) state.page = 0;
+  if (state.page > 0 && !detail.open && secondsSince(state.lastKey) >= 30) state.page = 0;
   render();
+  updateDetailHeader();
 }
 
 function blink() {
@@ -105,13 +111,17 @@ function render() {
   var elapsed = secondsSince(state.frameAt);
 
   el.grid.style.opacity = 1;
-  if (agents.length === 0) showMessage('No Claude sessions open');
+  if (agents.length === 0) showMessage('No agent sessions open');
   else hideMessage();
 
   var first = state.page * PER_PAGE;
   var visible = agents.slice(first, first + PER_PAGE);
   ensureCards(visible.length);
-  for (var i = 0; i < visible.length; i++) renderCard(cards[i], visible[i], elapsed);
+  if (state.focus >= visible.length) state.focus = visible.length - 1;
+  for (var i = 0; i < visible.length; i++) {
+    renderCard(cards[i], visible[i], elapsed);
+    if (i === state.focus) cards[i].node.className += ' focused';
+  }
 
   renderHeader(frame, agents, pages, elapsed);
   renderPanel(frame, agents, elapsed);
@@ -136,6 +146,8 @@ function ensureCards(count) {
       ctxTrack: node.querySelector('.ctxTrack'),
       ctxFill: node.querySelector('.ctxFill')
     };
+    node.addEventListener('mouseenter', focusCard.bind(null, cards.length));
+    node.addEventListener('click', openCard.bind(null, cards.length));
     el.grid.appendChild(node);
     cards.push(card);
   }
@@ -307,13 +319,57 @@ function changePage(delta) {
   render();
 }
 
+function focusCard(i) {
+  state.lastKey = Date.now();
+  if (state.focus === i) return;
+  state.focus = i;
+  render();
+}
+
+function openCard(i) {
+  if (state.frame === null) return;
+  openDetail(state.frame.agents[state.page * PER_PAGE + i]);
+}
+
+// Moves the highlight on the 2-column grid; past the first or last card it
+// turns the page.
+function moveFocus(dx, dy) {
+  if (state.frame === null || cards.length === 0) return;
+  if (state.focus < 0) {
+    focusCard(0);
+    return;
+  }
+  var next = state.focus + dx + dy * 2;
+  if (next >= cards.length && dx + dy > 0) {
+    changePage(1);
+    state.focus = 0;
+  } else if (next < 0) {
+    changePage(-1);
+    state.focus = cards.length - 1;
+  } else {
+    state.focus = Math.max(0, Math.min(cards.length - 1, next));
+  }
+  render();
+}
+
 function onKeyDown(e) {
   state.lastKey = Date.now();
+  if (detailKey(e)) {
+    e.preventDefault();
+    return;
+  }
   switch (e.keyCode) {
-    case KEY.RIGHT: case KEY.DOWN: case KEY.FAST_FORWARD: case KEY.CH_DOWN:
+    case KEY.RIGHT: moveFocus(1, 0); break;
+    case KEY.LEFT: moveFocus(-1, 0); break;
+    case KEY.DOWN: moveFocus(0, 1); break;
+    case KEY.UP: moveFocus(0, -1); break;
+    case KEY.ENTER:
+      if (state.focus >= 0) openCard(state.focus);
+      break;
+    case KEY.FAST_FORWARD: case KEY.CH_DOWN:
       changePage(1);
       break;
-    case KEY.LEFT: case KEY.UP: case KEY.REWIND: case KEY.CH_UP:
+    case KEY.REWIND: case KEY.CH_UP:
       changePage(-1);
       break;
     case KEY.BACK:

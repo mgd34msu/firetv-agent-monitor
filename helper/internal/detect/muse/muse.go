@@ -110,12 +110,13 @@ func (s *Source) Sessions(ctx context.Context, now time.Time) ([]agent.Session, 
 		}
 		seen[rec.ID] = true
 		session := agent.Session{
-			ID:        string(KindMuse) + ":" + rec.ID,
-			Kind:      KindMuse,
-			Dir:       cmp.Or(rec.Dir, p.Dir),
-			Status:    agent.StatusWaiting,
-			Since:     p.StartedAt,
-			StartedAt: p.StartedAt,
+			ID:         string(KindMuse) + ":" + rec.ID,
+			Kind:       KindMuse,
+			Dir:        cmp.Or(rec.Dir, p.Dir),
+			Status:     agent.StatusWaiting,
+			Since:      p.StartedAt,
+			StartedAt:  p.StartedAt,
+			Transcript: rec.LogPath,
 		}
 		if s.Titles {
 			session.Title = rec.Title

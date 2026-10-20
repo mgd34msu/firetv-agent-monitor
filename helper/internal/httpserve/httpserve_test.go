@@ -110,6 +110,27 @@ func TestUsageIsAddedToTheFrame(t *testing.T) {
 	}
 }
 
+func TestSessionView(t *testing.T) {
+	s := New("secret")
+	h := s.Handler()
+	if res, _ := get(t, h, "GET", "/session?id=claude:1", "Bearer secret"); res.StatusCode != http.StatusNotFound {
+		t.Fatalf("view off: got %d", res.StatusCode)
+	}
+	s.Session = func(id string) (any, bool, error) {
+		return map[string]string{"id": id}, id == "claude:1", nil
+	}
+	if res, _ := get(t, h, "GET", "/session?id=claude:1", ""); res.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("no token: got %d", res.StatusCode)
+	}
+	if res, _ := get(t, h, "GET", "/session?id=nope", "Bearer secret"); res.StatusCode != http.StatusNotFound {
+		t.Fatalf("unknown id: got %d", res.StatusCode)
+	}
+	res, body := get(t, h, "GET", "/session?id=claude:1", "Bearer secret")
+	if res.StatusCode != 200 || body != `{"id":"claude:1"}`+"\n" {
+		t.Fatalf("got %d %q", res.StatusCode, body)
+	}
+}
+
 func TestIsLoopback(t *testing.T) {
 	cases := map[string]bool{
 		"127.0.0.1:8787": true, "localhost:8787": true, "[::1]:8787": true,

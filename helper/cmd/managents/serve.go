@@ -4,13 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
+	"github.com/tonylook/managents/helper/internal/agent"
 	"github.com/tonylook/managents/helper/internal/app"
 	"github.com/tonylook/managents/helper/internal/detect"
 	"github.com/tonylook/managents/helper/internal/detect/claude"
@@ -21,6 +25,7 @@ import (
 	"github.com/tonylook/managents/helper/internal/discovery"
 	"github.com/tonylook/managents/helper/internal/httpserve"
 	"github.com/tonylook/managents/helper/internal/process"
+	"github.com/tonylook/managents/helper/internal/transcript"
 	"github.com/tonylook/managents/helper/internal/usage"
 )
 
@@ -37,6 +42,8 @@ func serveCommand(ctx context.Context, inv *invocation) error {
 		"send each session's title (as the Claude app shows it) along with its folder name")
 	activity := flags.Bool("activity", true,
 		"send a few words on what each session is doing, or what it needs from you while it waits")
+	transcripts := flags.Bool("transcripts", false,
+		"serve each session's recent conversation (prompts, replies, tool calls) at GET /session, for a display's read-only view")
 	discover := flags.Bool("discovery", true,
 		"answer LAN discovery requests that carry this token, on the UDP port with the same number")
 	if err := inv.parse(flags); err != nil {
@@ -75,6 +82,14 @@ func serveCommand(ctx context.Context, inv *invocation) error {
 		goodvibesSource,
 	}
 	server := httpserve.New(token)
+	var recorded *sessionRecorder
+	if *transcripts {
+		recorded = &sessionRecorder{}
+		for i, source := range sources {
+			sources[i] = recorded.wrap(source)
+		}
+		server.Session = recorded.view
+	}
 
 	listener, err := net.Listen("tcp", *addr)
 	if err != nil {
@@ -161,4 +176,65 @@ func pollUsage(ctx context.Context, poller *usage.Poller, server *httpserve.Serv
 		case <-ticker.C:
 		}
 	}
+}
+
+// sessionRecorder remembers, from each detection, which log file belongs to
+// which session id, so GET /session can read it without detecting again.
+type sessionRecorder struct {
+	mu    sync.Mutex
+	bySrc map[string]map[string]agent.Session // source name -> id -> session
+}
+
+type recordingSource struct {
+	detect.Source
+	r *sessionRecorder
+}
+
+func (r *sessionRecorder) wrap(s detect.Source) detect.Source { return recordingSource{s, r} }
+
+func (s recordingSource) Sessions(ctx context.Context, now time.Time) ([]agent.Session, error) {
+	found, err := s.Source.Sessions(ctx, now)
+	byID := make(map[string]agent.Session, len(found))
+	for _, session := range found {
+		byID[session.ID] = session
+	}
+	s.r.mu.Lock()
+	if s.r.bySrc == nil {
+		s.r.bySrc = map[string]map[string]agent.Session{}
+	}
+	s.r.bySrc[s.Name()] = byID
+	s.r.mu.Unlock()
+	return found, err
+}
+
+// sessionView is the body of GET /session.
+type sessionView struct {
+	ID       string               `json:"id"`
+	Kind     string               `json:"kind"`
+	Title    string               `json:"title,omitempty"`
+	Dir      string               `json:"name"`
+	Messages []transcript.Message `json:"messages"`
+}
+
+func (r *sessionRecorder) view(id string) (any, bool, error) {
+	r.mu.Lock()
+	var session agent.Session
+	found := false
+	for _, byID := range r.bySrc {
+		if s, ok := byID[id]; ok {
+			session, found = s, true
+		}
+	}
+	r.mu.Unlock()
+	if !found || session.Transcript == "" {
+		return nil, false, nil
+	}
+	messages, err := transcript.Read(string(session.Kind), session.Transcript)
+	if errors.Is(err, transcript.ErrUnknownKind) || errors.Is(err, fs.ErrNotExist) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return sessionView{ID: id, Kind: string(session.Kind), Title: session.Title, Dir: filepath.Base(session.Dir), Messages: messages}, true, nil
 }
