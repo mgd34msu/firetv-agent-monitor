@@ -1,6 +1,6 @@
 {
   "name": "org.lgagents.claudesessions.service",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "UDP discovery and screensaver blocking for the Claude Sessions app",
   "main": "service.js",
   "license": "MIT"
