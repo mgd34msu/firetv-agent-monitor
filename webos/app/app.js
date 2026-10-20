@@ -49,7 +49,12 @@ function secondsSince(t) {
 // --- layout ------------------------------------------------------------------
 
 function fitStage() {
-  var scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+  // The layout size, not innerWidth: Fire TV's WebView reports the screen's
+  // device-independent width there (1920) while laying out at 960.
+  var root = document.documentElement;
+  var w = root.clientWidth || window.innerWidth;
+  var h = root.clientHeight || window.innerHeight;
+  var scale = Math.min(w / 1920, h / 1080);
   el.stage.style.transform = 'scale(' + scale + ')';
 }
 
@@ -118,6 +123,8 @@ function render() {
   var visible = agents.slice(first, first + PER_PAGE);
   ensureCards(visible.length);
   if (state.focus >= visible.length) state.focus = visible.length - 1;
+  // Without a pointer (Fire TV), a card is always highlighted.
+  if (window.AgentBridge && state.focus < 0 && visible.length > 0) state.focus = 0;
   for (var i = 0; i < visible.length; i++) {
     renderCard(cards[i], visible[i], elapsed);
     if (i === state.focus) cards[i].node.className += ' focused';
@@ -373,7 +380,8 @@ function onKeyDown(e) {
       changePage(-1);
       break;
     case KEY.BACK:
-      if (window.webOSSystem) window.webOSSystem.platformBack();
+      if (window.AgentBridge) window.AgentBridge.exit();
+      else if (window.webOSSystem) window.webOSSystem.platformBack();
       else if (window.PalmSystem) window.PalmSystem.platformBack();
       break;
     default:
@@ -389,6 +397,7 @@ function onKeyDown(e) {
 var keepAwakeBridge = null;
 
 function keepAwake(on) {
+  if (window.AgentBridge) return; // the Fire TV app keeps the screen on itself
   if (on && keepAwakeBridge === null) {
     keepAwakeBridge = luna(SERVICE + 'keepAwake', { subscribe: true }, function () {});
   } else if (!on && keepAwakeBridge !== null) {
@@ -405,7 +414,16 @@ function loadConfig() {
   return { url: cfg.url.replace(/\/+$/, ''), token: typeof cfg.token === 'string' ? cfg.token : '' };
 }
 
+// The Fire TV app forwards the remote's keys with their webOS key codes.
+window.remoteKey = function (code) {
+  onKeyDown({ keyCode: code, preventDefault: function () {} });
+};
+
 function start() {
+  if (window.AgentBridge) {
+    document.getElementById('detailHint').textContent =
+      'Read only \u00b7 Up/Down to scroll \u00b7 \u23ea \u23e9 a page at a time \u00b7 Back to close';
+  }
   fitStage();
   window.addEventListener('resize', fitStage);
   document.addEventListener('keydown', onKeyDown);

@@ -1,0 +1,47 @@
+plugins {
+    id "com.android.application"
+}
+
+// The TV screen is the webOS app's web code, shared as is: copied from
+// ../webos/app at build time, with config.js (server address and token)
+// written by build.sh into firetv/config.js.
+def webAssets = layout.buildDirectory.dir("webassets")
+def copyWeb = tasks.register("copyWeb", Sync) {
+    from("../../webos/app") {
+        include "*.html", "*.js", "*.css"
+        exclude "config.js"
+    }
+    from("../config.js")
+    into webAssets
+}
+
+android {
+    namespace "org.agentmonitor.firetv"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "org.agentmonitor.firetv"
+        minSdk 22
+        targetSdk 35
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    sourceSets {
+        main.assets.srcDirs += webAssets
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug // sideloaded, never published to a store
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}
+
+tasks.named("preBuild") { dependsOn copyWeb }

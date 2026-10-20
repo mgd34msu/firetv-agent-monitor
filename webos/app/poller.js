@@ -114,8 +114,7 @@ Poller.prototype.rediscover = function () {
   this.lastDiscovery = Date.now();
   var self = this;
   return new Promise(function (resolve) {
-    luna(SERVICE + 'discover', { token: self.token, port: urlPort(self.configUrl) }, function (res) {
-      var found = res && res.returnValue && typeof res.url === 'string' ? res.url : '';
+    platformDiscover(self.token, urlPort(self.configUrl), function (found) {
       if (found === '') {
         // Nobody answered. Maybe a helper without discovery is back at the
         // configured address, so poll that until discovery finds something.
@@ -128,6 +127,23 @@ Poller.prototype.rediscover = function () {
     });
   });
 };
+
+// Broadcasts a discovery request through the platform: the webOS service, or
+// the Fire TV app's AgentBridge, which answers by calling
+// window.agentDiscovered(url). done gets the verified url, or "".
+function platformDiscover(token, port, done) {
+  if (window.AgentBridge) {
+    window.agentDiscovered = function (url) {
+      window.agentDiscovered = null;
+      done(typeof url === 'string' ? url : '');
+    };
+    window.AgentBridge.discover(token, port);
+    return;
+  }
+  luna(SERVICE + 'discover', { token: token, port: port }, function (res) {
+    done(res && res.returnValue && typeof res.url === 'string' ? res.url : '');
+  });
+}
 
 function urlPort(url) {
   var m = /^http:\/\/[^\/:]+:(\d+)/.exec(url);

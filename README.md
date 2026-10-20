@@ -1,11 +1,11 @@
-<h1 align="center">LG Agent Monitor</h1>
+<h1 align="center">Fire TV Agent Monitor</h1>
 
 <p align="center">
   <img src="docs/images/lg-tv-demo.png" alt="The TV app: six session cards for Claude, Codex, Muse and GoodVibes on the left, plan usage bars and context per session on the right" width="820">
 </p>
 
 <p align="center">
-  <b>Every AI coding agent you have open, on your LG TV: which one is working, which one needs you, and how much of your plan is left.</b>
+  <b>Every AI coding agent you have open, on your Fire TV: which one is working, which one needs you, and how much of your plan is left.</b>
 </p>
 
 <p align="center">
@@ -16,8 +16,10 @@ Each open session is a card: green while it works, yellow when it waits for you,
 has been idle for hours. A card names the tool, the session's title and folder, what the agent is doing right now (or
 what it asked you), how long it has been in that state, and a bar for context-window usage. The right third of the
 screen shows how much of each subscription's 5-hour and weekly limits is used, and the context of every session.
+Select a card to read that session's conversation, read only.
 
-This is a fork of [rokuagents](https://github.com/jonsykes/rokuagents) by Jon Sykes, which is itself a fork of
+This is the Fire TV version of [lg-agent-monitor](https://github.com/mgd34msu/lg-agent-monitor), which forks
+[rokuagents](https://github.com/jonsykes/rokuagents) by Jon Sykes, itself a fork of
 [managents](https://github.com/tonylook/managents) by Antonio Alvino. See [Credits](#credits).
 
 ## Supported agents
@@ -42,30 +44,30 @@ Where each number comes from, all read on your computer:
 ## How it works
 
 ```
-Claude Code, Codex,   managents serve ──── HTTP, your LAN ────> LG TV app (webOS)
-Muse, GoodVibes  ───> reads session files    GET /state, once      draws the cards
-(your computer)       and plan usage         a second, with a      and the panel
-                                             token
+Claude Code, Codex,   managents serve ──── HTTP, your LAN ────> Fire TV app
+Muse, GoodVibes  ───> reads session files    GET /state, once      draws the cards,
+(your computer)       and plan usage         a second; /session    the panel and the
+                                             for the session view  session view
 ```
 
 - **`managents serve`** runs on your computer. It detects the sessions, works out each one's status and activity,
-  polls plan usage, and answers `GET /state` with JSON. Requests need a bearer token. The format is in
-  [docs/http-api.md](docs/http-api.md), plus a `usage` array for the panel.
-- **The webOS app** in [`webos/`](webos/README.md) polls that address once a second. A small service bundled with it
-  finds your computer again with a LAN broadcast when its address changes, and asks the TV to hold off its
-  screensaver while the app is open.
+  polls plan usage, and answers `GET /state` with JSON, plus `GET /session` for the session view with
+  `--transcripts`. Requests need a bearer token. See [docs/http-api.md](docs/http-api.md).
+- **The Fire TV app** in [`firetv/`](firetv/README.md) is a small Android app: a full-screen WebView showing the same
+  TV screen as the LG version (the shared code in `webos/app`), with a native part that keeps the screen on, finds
+  your computer again with a LAN broadcast when its address changes, and passes the remote's buttons to the page.
 
 ## What you need
 
 - **A computer** with the agents you use. Developed on Linux; the upstream helper also supports macOS.
-- **Go 1.26 or newer** to build the helper.
-- **An LG webOS TV, rooted, with the [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel) and SSH
-  enabled.** Built for an 86NANO90UNA (webOS 5.6). Other webOS TVs should work.
-- **Node.js**, so the build can fetch LG's `ares-package` through `npx`.
+- **Go 1.26 or newer** to build the helper, or the Linux binary from the [latest release](../../releases/latest).
+- **A Fire TV** with **ADB debugging** on (Settings > My Fire TV > Developer Options). Built on a Fire TV Cube (3rd
+  generation); any Fire TV or Android TV device should work.
+- **JDK 17 and the Android SDK** (command-line tools, platform 35) to build the app. No Android Studio needed.
 
 ## Get started
 
-1. **Build the helper**, or download it from the [latest release](../../releases/latest):
+1. **Build the helper:**
 
    ```sh
    cd helper && go build -o ~/bin/managents ./cmd/managents
@@ -79,29 +81,31 @@ Muse, GoodVibes  ───> reads session files    GET /state, once      draws t
    MANAGENTS_TOKEN=$(cat ~/.config/managents/token) ~/bin/managents serve --addr :8787 --transcripts
    ```
 
-   Leave out `--transcripts` if you do not want the TV to be able to show conversations.
+   Leave out `--transcripts` if you do not want the TV to be able to show conversations. If a firewall is on, open
+   TCP and UDP 8787 to your LAN only, for example `sudo ufw allow from 192.168.0.0/24 to any port 8787`.
 
-   If a firewall is on, open TCP and UDP 8787 to your LAN only, for example
-   `sudo ufw allow from 192.168.0.0/24 to any port 8787`.
-
-3. **Build and install the TV app.** The address and token are baked into the package, so build it yourself:
+3. **Build and install the Fire TV app.** The address and token are baked into the app, so build it yourself:
 
    ```sh
-   cd webos
-   TV_IP=YOUR_TV_IP TV_PASS=your-root-password ./build.sh http://YOUR_COMPUTER_IP:8787 "$(cat ~/.config/managents/token)"
+   cd firetv
+   FIRETV_IP=YOUR_FIRE_TV_IP ./build.sh http://YOUR_COMPUTER_IP:8787 "$(cat ~/.config/managents/token)"
    ```
 
-   Details, including a manual install, are in [webos/README.md](webos/README.md).
+   The first time, accept the "Allow USB debugging?" prompt on the TV. The app is **Agent Sessions** in Your Apps.
+   Details in [firetv/README.md](firetv/README.md).
 
 ## Using it
 
-- Six cards per page. Point at a card with the Magic Remote, or move the highlight with the arrow keys; channel
-  up/down turn pages. It returns to the first page after 30 seconds.
-- **Click a card (or press OK) to open the session**, read only: your prompts, the agent's replies, its tool calls
-  and the start of their output, refreshed every two seconds. Scroll with the remote's wheel, Up/Down or channel
-  up/down; Back or Close returns. This needs the helper started with `--transcripts`.
-- The panel lists sessions until it runs out of room, then counts the rest.
-- Back closes the app.
+| Remote | On the cards | In the session view |
+|---|---|---|
+| Arrows | Move the highlight; past the last card, turn the page | Up/Down scroll |
+| Select | Open the highlighted session | |
+| Rewind / Fast-forward | Turn the page | Scroll a page at a time |
+| Back | Leave the app | Back to the cards |
+
+- Six cards per page; it returns to the first page after 30 seconds.
+- The session view shows your prompts, the agent's replies, its tool calls and the start of their output, refreshed
+  every two seconds. It never sends anything to the session.
 
 ## Privacy
 
@@ -116,24 +120,23 @@ without storing. Traffic to the TV is plain HTTP on your network, protected by t
 
 ## Also in this repository
 
-Everything from upstream still works: the Roku channel in [`roku/`](roku/README.md), the macOS menu bar app in
-[`macos/`](macos/README.md), and the managents USB desk display (firmware, enclosure and `managents run`). The
-rokuagents README is kept at [docs/upstream-rokuagents-README.md](docs/upstream-rokuagents-README.md).
+The LG webOS app in [`webos/`](webos/README.md) (the shared TV screen lives in `webos/app`), the Roku channel in
+[`roku/`](roku/README.md), the macOS menu bar app in [`macos/`](macos/README.md), and the managents USB desk display.
 
 ## Credits
 
+- **[lg-agent-monitor](https://github.com/mgd34msu/lg-agent-monitor)**: the LG webOS version this repository is built
+  from, with the same TV screen, multi-agent detection, plan usage and session view. Its git history is this one's.
 - **[managents](https://github.com/tonylook/managents)** by **Antonio Alvino**: the original USB desk display for AI
   coding agents, its Go helper, session detection for Claude Code, Codex and OpenCode, and the serial protocol.
-- **[rokuagents](https://github.com/jonsykes/rokuagents)** by **Jon Sykes**: the fork this repository forks. It added
+- **[rokuagents](https://github.com/jonsykes/rokuagents)** by **Jon Sykes**: the fork lg-agent-monitor forks. It added
   `managents serve` (the HTTP API and LAN discovery), the Roku channel and the macOS app. The card design on the TV
   follows its Roku channel.
 - **[CodexBar](https://github.com/steipete/CodexBar)** by **Peter Steinberger**: how to read Muse Code's subscription
   usage ([docs/muse.md](https://github.com/steipete/CodexBar/blob/main/docs/muse.md)).
-- **[webOS Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel)**, which makes sideloading and the
-  root service possible.
 
 Built with [gopsutil](https://github.com/shirou/gopsutil), [modernc.org/sqlite](https://gitlab.com/cznic/sqlite) and the
 other components listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Released under the [MIT license](LICENSE).
 
-Claude and Claude Code are trademarks of Anthropic, Codex of OpenAI, Muse of Meta, LG and webOS of LG Electronics, and
-Roku of Roku, Inc. This project is not affiliated with any of them.
+Claude and Claude Code are trademarks of Anthropic, Codex of OpenAI, Muse of Meta, Fire TV of Amazon, LG and webOS of LG
+Electronics, and Roku of Roku, Inc. This project is not affiliated with any of them.
