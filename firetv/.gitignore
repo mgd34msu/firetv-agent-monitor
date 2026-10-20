@@ -2,5 +2,4 @@ build/
 app/build/
 .gradle/
 local.properties
-config.js
 *.apk

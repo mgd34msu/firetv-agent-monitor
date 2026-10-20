@@ -63,7 +63,8 @@ Muse, GoodVibes  ───> reads session files    GET /state, once      draws t
 - **Go 1.26 or newer** to build the helper, or the Linux binary from the [latest release](../../releases/latest).
 - **A Fire TV** with **ADB debugging** on (Settings > My Fire TV > Developer Options). Built on a Fire TV Cube (3rd
   generation); any Fire TV or Android TV device should work.
-- **JDK 17 and the Android SDK** (command-line tools, platform 35) to build the app. No Android Studio needed.
+- **`adb`** on your computer (`android-tools` on Arch, `adb` on Debian/Ubuntu, `android-platform-tools` on Homebrew).
+  Building the app yourself also needs JDK 17 and the Android SDK; the release APK does not.
 
 ## Get started
 
@@ -84,15 +85,17 @@ Muse, GoodVibes  ───> reads session files    GET /state, once      draws t
    Leave out `--transcripts` if you do not want the TV to be able to show conversations. If a firewall is on, open
    TCP and UDP 8787 to your LAN only, for example `sudo ufw allow from 192.168.0.0/24 to any port 8787`.
 
-3. **Build and install the Fire TV app.** The address and token are baked into the app, so build it yourself:
+3. **Install the app and point it at your computer**, from this repository:
 
    ```sh
-   cd firetv
-   FIRETV_IP=YOUR_FIRE_TV_IP ./build.sh http://YOUR_COMPUTER_IP:8787 "$(cat ~/.config/managents/token)"
+   firetv/setup.sh YOUR_FIRE_TV_IP
    ```
 
-   The first time, accept the "Allow USB debugging?" prompt on the TV. The app is **Agent Sessions** in Your Apps.
-   Details in [firetv/README.md](firetv/README.md).
+   It installs the latest release's APK over adb, then gives the app your computer's address and the token from
+   `~/.config/managents/token`. The APK itself holds neither, so the same file works for everyone; the app keeps
+   the settings it is given. Rerun `setup.sh` when the token or your computer changes. The first time, accept the
+   "Allow USB debugging?" prompt on the TV. The app is **Agent Sessions** in Your Apps. To build the APK yourself,
+   see [firetv/README.md](firetv/README.md).
 
 ## Using it
 

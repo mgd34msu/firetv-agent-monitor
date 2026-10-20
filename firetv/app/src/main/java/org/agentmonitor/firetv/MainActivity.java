@@ -2,6 +2,9 @@ package org.agentmonitor.firetv;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.WindowManager;
@@ -16,8 +19,13 @@ import org.json.JSONObject;
  * from webos/app into the assets), plus what a web page cannot do on its own:
  * keep the screen on, find the helper on the LAN with a UDP broadcast, and
  * receive the Fire TV remote's keys.
+ *
+ * The APK carries no server address or token. firetv/setup.sh sends them once
+ * over adb as extras of the launch intent ("url", "token"); they are kept in
+ * the app's private preferences and handed to the page by AgentBridge.config().
  */
 public class MainActivity extends Activity {
+    private static final String PREFS = "server";
     private WebView web;
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
@@ -27,7 +35,9 @@ public class MainActivity extends Activity {
         // A status board: never let the screensaver cover it while it is open.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-        WebView.setWebContentsDebuggingEnabled(true); // chrome://inspect over adb
+        saveConfig(getIntent());
+        // chrome://inspect over adb, for builds made debuggable only.
+        WebView.setWebContentsDebuggingEnabled((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0);
         web = new WebView(this);
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -39,6 +49,32 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new Bridge(), "AgentBridge");
         setContentView(web);
         web.loadUrl("file:///android_asset/index.html");
+    }
+
+    /** setup.sh starts the running app again with new settings: apply them. */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (saveConfig(intent)) {
+            web.reload();
+        }
+    }
+
+    /** Stores the url and token an intent carries; reports whether it had any. */
+    private boolean saveConfig(Intent intent) {
+        if (intent == null) {
+            return false;
+        }
+        String url = intent.getStringExtra("url");
+        if (url == null || !url.startsWith("http://")) {
+            return false;
+        }
+        String token = intent.getStringExtra("token");
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .putString("url", url.replaceAll("/+$", ""))
+                .putString("token", token == null ? "" : token)
+                .apply();
+        return true;
     }
 
     /**
@@ -86,6 +122,21 @@ public class MainActivity extends Activity {
 
     /** What the page may call, as window.AgentBridge. */
     private final class Bridge {
+        /** {"url": ..., "token": ...} as set by setup.sh, or "" before setup. */
+        @JavascriptInterface
+        public String config() {
+            SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+            String url = prefs.getString("url", "");
+            if (url.isEmpty()) {
+                return "";
+            }
+            try {
+                return new JSONObject().put("url", url).put("token", prefs.getString("token", "")).toString();
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
         /** Back on the card grid: leave the app. */
         @JavascriptInterface
         public void exit() {

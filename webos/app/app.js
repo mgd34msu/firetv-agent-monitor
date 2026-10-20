@@ -410,6 +410,10 @@ function keepAwake(on) {
 
 function loadConfig() {
   var cfg = window.LGAGENTS_CONFIG;
+  if (window.AgentBridge) {
+    // The Fire TV app keeps its settings outside the APK (firetv/setup.sh).
+    try { cfg = JSON.parse(window.AgentBridge.config() || 'null'); } catch (e) { cfg = null; }
+  }
   if (!cfg || typeof cfg.url !== 'string' || cfg.url.indexOf('http://') !== 0) return null;
   return { url: cfg.url.replace(/\/+$/, ''), token: typeof cfg.token === 'string' ? cfg.token : '' };
 }
@@ -431,7 +435,9 @@ function start() {
 
   var config = loadConfig();
   if (config === null) {
-    showMessage('config.js is missing or has no url. Rebuild the app with build.sh.');
+    showMessage(window.AgentBridge
+      ? 'Not set up yet. On your computer, run: firetv/setup.sh YOUR_FIRE_TV_IP'
+      : 'config.js is missing or has no url. Rebuild the app with build.sh.');
     return;
   }
   keepAwake(true);
